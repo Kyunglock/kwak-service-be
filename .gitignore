@@ -50,3 +50,4 @@ docker-compose.override.yml
 # === Custom ===
 *.bak
 service/dividend-collector/
+dump-invdb.sql
