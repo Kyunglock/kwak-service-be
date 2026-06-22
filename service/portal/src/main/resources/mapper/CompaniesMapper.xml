@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.investment.portal.domain.repository.stock.CompaniesMapper">
+
+    <!--
+        전체 종목 코드 조회 (US + KR 통합)
+        - tbl_companies: US 종목 (ticker 그대로 사용)
+        - tbl_stock_info: 한국 종목 (KOSPI → STOCK_CD.KS, KOSDAQ → STOCK_CD.KQ)
+          tbl_stock_price_history는 Yahoo Finance 형식으로 저장되므로 suffix 변환 필요
+    -->
+    <select id="findAllTickers" resultType="string">
+        SELECT ticker
+          FROM tbl_companies
+         UNION
+        SELECT CASE
+                   WHEN EXCHANGE = 'KOSPI'  THEN CONCAT(STOCK_CD, '.KS')
+                   WHEN EXCHANGE = 'KOSDAQ' THEN CONCAT(STOCK_CD, '.KQ')
+                   ELSE STOCK_CD
+               END
+          FROM tbl_stock_info
+         WHERE USE_YN = 'Y'
+         ORDER BY 1
+    </select>
+
+</mapper>

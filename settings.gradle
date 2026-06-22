@@ -1,0 +1,8 @@
+rootProject.name = 'inv-back'
+
+include 'common'
+include 'service:api-gateway'
+include 'service:portal'
+include 'service:stock-advisor'
+include 'service:survey-service'
+include 'service:market-analyzer'

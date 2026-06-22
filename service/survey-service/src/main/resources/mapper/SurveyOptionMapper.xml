@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.investment.survey.domain.repository.SurveyOptionMapper">
+
+    <select id="findOptionById" resultType="SurveyOption">
+        SELECT option_id
+             , question_id
+             , option_text
+             , option_value
+             , sort_order
+             , score
+             , reg_dt
+          FROM tbl_survey_option
+         WHERE option_id = #{optionId}
+    </select>
+
+    <select id="findOptionsByQuestionId" resultType="SurveyOption">
+        SELECT option_id
+             , question_id
+             , option_text
+             , option_value
+             , sort_order
+             , score
+             , reg_dt
+          FROM tbl_survey_option
+         WHERE question_id = #{questionId}
+         ORDER BY sort_order
+    </select>
+
+    <select id="findOptionsByQuestionIds" resultType="SurveyOption">
+        SELECT option_id
+             , question_id
+             , option_text
+             , option_value
+             , sort_order
+             , score
+             , reg_dt
+          FROM tbl_survey_option
+         WHERE question_id IN
+        <foreach item="id" collection="questionIds" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+         ORDER BY question_id, sort_order
+    </select>
+
+    <select id="findOptionsStatsByQuestionIds" resultType="SurveyOptionStats">
+      SELECT A.OPTION_ID
+           , A.QUESTION_ID
+           , A.OPTION_TEXT
+           , A.OPTION_VALUE
+           , A.SORT_ORDER
+           , A.SCORE
+           , A.REG_DT
+           , COUNT(B.SELECTED_VALUE) AS SELECTED_COUNT
+        FROM TBL_SURVEY_OPTION A
+        LEFT JOIN TBL_SURVEY_ANSWER B
+          ON A.QUESTION_ID = B.QUESTION_ID
+         AND B.SELECTED_VALUE = A.OPTION_VALUE
+       WHERE A.QUESTION_ID IN
+       <foreach item="id" collection="questionIds" open="(" separator="," close=")">
+           #{id}
+       </foreach>
+       GROUP BY A.OPTION_ID, A.QUESTION_ID, A.OPTION_TEXT, A.OPTION_VALUE, A.SORT_ORDER, A.SCORE, A.REG_DT
+       ORDER BY A.QUESTION_ID, A.SORT_ORDER
+    </select>
+
+    <insert id="insertOption" useGeneratedKeys="true" keyProperty="optionId">
+        INSERT INTO tbl_survey_option (
+             question_id
+           , option_text
+           , option_value
+           , sort_order
+           , score
+           , reg_dt
+        ) VALUES (
+             #{questionId}
+           , #{optionText}
+           , #{optionValue}
+           , #{sortOrder}
+           , #{score}
+           , NOW()
+        )
+    </insert>
+
+    <update id="updateOption">
+        UPDATE tbl_survey_option
+           SET option_text = #{optionText}
+        <if test="optionValue != null">
+             , option_value = #{optionValue}
+        </if>
+        <if test="sortOrder != null">
+             , sort_order = #{sortOrder}
+        </if>
+        <if test="score != null">
+             , score = #{score}
+        </if>
+         WHERE option_id = #{optionId}
+    </update>
+
+    <delete id="deleteOption">
+        DELETE FROM tbl_survey_option
+         WHERE option_id = #{optionId}
+    </delete>
+
+    <delete id="deleteOptionsByQuestionId">
+        DELETE FROM tbl_survey_option
+         WHERE question_id = #{questionId}
+    </delete>
+
+</mapper>

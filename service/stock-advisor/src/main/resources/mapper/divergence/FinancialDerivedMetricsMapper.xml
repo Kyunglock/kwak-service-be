@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.investment.stockadvisor.domain.repository.divergence.FinancialDerivedMetricsMapper">
+
+    <insert id="upsert">
+        INSERT INTO financial_derived_metrics (
+            stock_cd, fiscal_year, fiscal_quarter, period_end_dt,
+            revenue_yoy, revenue_qoq, fcf_yoy, ocf_yoy, ni_ocf_gap,
+            dso, dio, gross_margin, op_margin, fcf_margin,
+            capex_to_depreciation, rd_intensity, sga_intensity, net_debt_to_ebitda
+        ) VALUES (
+            #{stockCd}, #{fiscalYear}, #{fiscalQuarter}, #{periodEndDt},
+            #{revenueYoy}, #{revenueQoq}, #{fcfYoy}, #{ocfYoy}, #{niOcfGap},
+            #{dso}, #{dio}, #{grossMargin}, #{opMargin}, #{fcfMargin},
+            #{capexToDepreciation}, #{rdIntensity}, #{sgaIntensity}, #{netDebtToEbitda}
+        )
+        ON DUPLICATE KEY UPDATE
+            revenue_yoy            = VALUES(revenue_yoy),
+            revenue_qoq            = VALUES(revenue_qoq),
+            fcf_yoy                = VALUES(fcf_yoy),
+            ocf_yoy                = VALUES(ocf_yoy),
+            ni_ocf_gap             = VALUES(ni_ocf_gap),
+            dso                    = VALUES(dso),
+            dio                    = VALUES(dio),
+            gross_margin           = VALUES(gross_margin),
+            op_margin              = VALUES(op_margin),
+            fcf_margin             = VALUES(fcf_margin),
+            capex_to_depreciation  = VALUES(capex_to_depreciation),
+            rd_intensity           = VALUES(rd_intensity),
+            sga_intensity          = VALUES(sga_intensity),
+            net_debt_to_ebitda     = VALUES(net_debt_to_ebitda),
+            upd_dt                 = CURRENT_TIMESTAMP
+    </insert>
+
+    <select id="findRecentByStockCd" resultType="com.investment.stockadvisor.domain.entity.divergence.FinancialDerivedMetrics">
+        SELECT id
+             , stock_cd
+             , fiscal_year
+             , fiscal_quarter
+             , period_end_dt
+             , revenue_yoy
+             , revenue_qoq
+             , fcf_yoy
+             , ocf_yoy
+             , ni_ocf_gap
+             , dso
+             , dio
+             , gross_margin
+             , op_margin
+             , fcf_margin
+             , capex_to_depreciation
+             , rd_intensity
+             , sga_intensity
+             , net_debt_to_ebitda
+             , reg_dt
+             , upd_dt
+          FROM financial_derived_metrics
+         WHERE stock_cd = #{stockCd}
+         ORDER BY fiscal_year DESC, fiscal_quarter DESC
+         LIMIT #{limit}
+    </select>
+
+</mapper>

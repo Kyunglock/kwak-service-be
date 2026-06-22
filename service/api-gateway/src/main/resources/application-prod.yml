@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: api-gateway
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+
+# JWT 시크릿은 반드시 환경 변수로 주입 (docker-compose 또는 k8s secret)
+# JWT_SECRET 환경 변수 필수

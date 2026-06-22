@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.investment.portal.domain.repository.insight.InsightResultMapper">
+
+    <!-- 사용자 전체 인사이트 결과 목록 조회 (타입별) -->
+    <select id="findAllByUserId" resultType="com.investment.portal.domain.entity.insight.InsightResult">
+        SELECT result_id
+             , user_id
+             , result_type_cd
+             , title
+             , content
+             , use_yn
+             , reg_dt
+             , upd_dt
+          FROM tbl_insight_result
+         WHERE user_id = #{userId}
+           AND use_yn = 'Y'
+         ORDER BY result_type_cd
+    </select>
+
+    <!-- 사용자 + 타입별 인사이트 결과 단건 조회 -->
+    <select id="findByUserIdAndType" resultType="com.investment.portal.domain.entity.insight.InsightResult">
+        SELECT result_id
+             , user_id
+             , result_type_cd
+             , title
+             , content
+             , use_yn
+             , reg_dt
+             , upd_dt
+          FROM tbl_insight_result
+         WHERE user_id       = #{userId}
+           AND result_type_cd = #{resultTypeCd}
+           AND use_yn        = 'Y'
+    </select>
+
+    <!--
+        인사이트 결과 upsert
+        uk_insight_user_type (user_id, result_type_cd) 기준으로
+        없으면 INSERT, 있으면 title/content/upd_dt UPDATE
+    -->
+    <insert id="upsert" useGeneratedKeys="true" keyProperty="resultId">
+        INSERT INTO tbl_insight_result (
+             user_id
+           , result_type_cd
+           , title
+           , content
+           , use_yn
+           , reg_dt
+        ) VALUES (
+             #{userId}
+           , #{resultTypeCd}
+           , #{title}
+           , #{content}
+           , 'Y'
+           , NOW()
+        )
+        ON DUPLICATE KEY UPDATE
+             title  = VALUES(title)
+           , content = VALUES(content)
+           , upd_dt  = NOW()
+    </insert>
+
+</mapper>

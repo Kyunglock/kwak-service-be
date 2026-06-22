@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.investment.survey.domain.repository.SurveyAnswerMapper">
+
+    <select id="findAnswersByResponseId" resultType="SurveyAnswer">
+        SELECT answer_id
+             , response_id
+             , question_id
+             , selected_option_id
+             , selected_value
+             , answer_score
+             , answered_at
+          FROM tbl_survey_answer
+         WHERE response_id = #{responseId}
+         ORDER BY question_id
+    </select>
+
+    <insert id="insertAnswer" useGeneratedKeys="true" keyProperty="answerId">
+        INSERT INTO tbl_survey_answer (
+             response_id
+           , question_id
+           , selected_option_id
+           , selected_value
+           , answer_score
+           , answered_at
+        ) VALUES (
+             #{responseId}
+           , #{questionId}
+           , #{selectedOptionId}
+           , #{selectedValue}
+           , #{answerScore}
+           , NOW()
+        )
+    </insert>
+
+    <insert id="batchInsertAnswers">
+        INSERT INTO tbl_survey_answer (
+             response_id
+           , question_id
+           , selected_option_id
+           , selected_value
+           , answer_score
+           , answered_at
+        ) VALUES
+        <foreach item="item" collection="list" separator=",">
+        (
+             #{item.responseId}
+           , #{item.questionId}
+           , #{item.selectedOptionId}
+           , #{item.selectedValue}
+           , #{item.answerScore}
+           , NOW()
+        )
+        </foreach>
+    </insert>
+
+    <delete id="deleteAnswersByResponseId">
+        DELETE FROM tbl_survey_answer
+         WHERE response_id = #{responseId}
+    </delete>
+
+</mapper>

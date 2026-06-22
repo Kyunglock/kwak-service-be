@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.investment.portal.domain.repository.portfolio.PortfolioMapper">
+
+    <!-- 포트폴리오ID로 조회 -->
+    <select id="findByPortfolioId" resultType="Portfolio">
+        SELECT portfolio_id
+             , user_id
+             , portfolio_nm
+             , portfolio_desc
+             , base_currency
+             , use_yn
+             , reg_dt
+             , upd_dt
+          FROM tbl_portfolio
+         WHERE portfolio_id = #{portfolioId}
+           AND use_yn = 'Y'
+    </select>
+
+    <!-- 사용자ID로 포트폴리오 목록 조회 -->
+    <select id="findByUserId" resultType="Portfolio">
+        SELECT portfolio_id
+             , user_id
+             , portfolio_nm
+             , portfolio_desc
+             , base_currency
+             , use_yn
+             , reg_dt
+             , upd_dt
+          FROM tbl_portfolio
+         WHERE user_id = #{userId}
+           AND use_yn = 'Y'
+         ORDER BY reg_dt DESC
+    </select>
+
+    <!-- 포트폴리오 등록 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="portfolioId">
+        INSERT INTO tbl_portfolio (
+             user_id
+           , portfolio_nm
+           , portfolio_desc
+           , base_currency
+           , use_yn
+           , reg_dt
+           , upd_dt
+        ) VALUES (
+             #{userId}
+           , #{portfolioNm}
+           , #{portfolioDesc}
+           , COALESCE(#{baseCurrency}, 'USD')
+           , 'Y'
+           , NOW()
+           , NOW()
+        )
+    </insert>
+
+    <!-- 포트폴리오 수정 -->
+    <update id="update">
+        UPDATE tbl_portfolio
+           SET portfolio_nm = #{portfolioNm}
+             , upd_dt = NOW()
+        <if test="portfolioDesc != null">
+             , portfolio_desc = #{portfolioDesc}
+        </if>
+        <if test="baseCurrency != null">
+             , base_currency = #{baseCurrency}
+        </if>
+         WHERE portfolio_id = #{portfolioId}
+           AND use_yn = 'Y'
+    </update>
+
+    <!-- 포트폴리오 삭제 (논리 삭제) -->
+    <update id="delete">
+        UPDATE tbl_portfolio
+           SET use_yn = 'N'
+             , upd_dt = NOW()
+         WHERE portfolio_id = #{portfolioId}
+           AND use_yn = 'Y'
+    </update>
+
+</mapper>

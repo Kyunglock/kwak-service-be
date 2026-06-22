@@ -1,0 +1,52 @@
+# === Java / Spring Boot ===
+*.class
+*.jar
+*.war
+*.ear
+*.iml
+*.log
+*.tmp
+
+# === Gradle ===
+.gradle/
+build/
+bin/
+out/
+!gradle/wrapper/gradle-wrapper.jar
+
+# === VSCode ===
+.vscode/
+.idea/
+
+# === OS Files ===
+.DS_Store
+Thumbs.db
+
+# === Logs / Temp ===
+logs/
+*.log
+tmp/
+*.pid
+
+# === Environment Files ===
+.env
+*.properties.local
+*.yml.local
+
+# === Node (optional for frontend or build tools) ===
+node_modules/
+dist/
+npm-debug.log
+yarn-error.log
+
+# === Test Reports ===
+test-output/
+coverage/
+
+# === Docker / Compose ===
+docker-compose.override.yml
+.env.docker
+
+# === Custom ===
+*.bak
+service/dividend-collector/

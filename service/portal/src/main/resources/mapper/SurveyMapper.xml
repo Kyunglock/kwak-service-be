@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.investment.portal.domain.repository.survey.SurveyMapper">
+
+    <!-- RISK_PROFILE 설문 항목별 점수 (stock-advisor와 동일 DB 공유) -->
+    <select id="findRiskProfileScores" resultType="map">
+        SELECT C.DESCRIPTION     AS description
+             , SUM(D.ANSWER_SCORE) / 4 AS score
+          FROM (
+                SELECT RESPONSE_ID
+                     , SURVEY_ID
+                     , USER_ID
+                     , ROW_NUMBER() OVER (
+                         PARTITION BY USER_ID, SURVEY_ID
+                         ORDER BY REG_DT DESC
+                       ) AS RN
+                  FROM TBL_USER_SURVEY_RESPONSE
+                 WHERE USER_ID = #{userId}
+               ) A
+          JOIN TBL_SURVEY B
+            ON A.SURVEY_ID = B.SURVEY_ID
+          JOIN TBL_SURVEY_QUESTION C
+            ON B.SURVEY_ID = C.SURVEY_ID
+          JOIN TBL_SURVEY_ANSWER D
+            ON A.RESPONSE_ID = D.RESPONSE_ID
+           AND C.QUESTION_ID  = D.QUESTION_ID
+          JOIN TBL_SURVEY_OPTION E
+            ON D.SELECTED_OPTION_ID = E.OPTION_ID
+         WHERE A.RN = 1
+           AND B.SURVEY_TYPE_CODE = 'RISK_PROFILE'
+         GROUP BY C.DESCRIPTION
+    </select>
+
+</mapper>

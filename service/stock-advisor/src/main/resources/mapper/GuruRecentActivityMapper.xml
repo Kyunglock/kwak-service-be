@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.investment.stockadvisor.domain.repository.guru.GuruRecentActivityMapper">
+
+    <!-- 목록 조회 -->
+    <select id="findGuruRecentActivityAll" resultType="GuruRecentActivity">
+        SELECT a.ACTIVITY_ID
+             , a.GURU_CD
+             , g.INVESTOR_NM
+             , g.INVESTOR_KO_NM
+             , g.INVESTOR_NICKNAME
+             , a.ACTIVITY_TYPE
+             , a.ISSUER_NM
+             , a.TICKER
+             , a.ACTIVITY_DATE
+             , a.ACTIVITY_YEAR
+             , a.ACTIVITY_QTR
+             , a.CHANGE_PCT
+             , a.NOTES
+             , a.REG_DT
+          FROM tbl_guru_recent_activity a
+          JOIN tbl_guru g ON g.GURU_CD = a.GURU_CD
+         WHERE 1=1
+        <if test="searchRequest.guruCd != null and searchRequest.guruCd != ''">
+            AND a.GURU_CD = #{searchRequest.guruCd}
+        </if>
+        <if test="searchRequest.activityType != null and searchRequest.activityType != ''">
+            AND a.ACTIVITY_TYPE = #{searchRequest.activityType}
+        </if>
+        <if test="searchRequest.ticker != null and searchRequest.ticker != ''">
+            AND a.TICKER = #{searchRequest.ticker}
+        </if>
+        <if test="searchRequest.activityDate != null and searchRequest.activityDate != ''">
+            AND a.ACTIVITY_DATE = #{searchRequest.activityDate}
+        </if>
+         ORDER BY a.ACTIVITY_ID DESC
+    </select>
+
+    <!-- ticker당 가장 최근 거래 조회 -->
+    <select id="findLatestActivityPerTicker" resultType="GuruRecentActivity">
+        SELECT t.ACTIVITY_ID
+             , t.GURU_CD
+             , g.INVESTOR_NM
+             , g.INVESTOR_KO_NM
+             , g.INVESTOR_NICKNAME
+             , t.ACTIVITY_TYPE
+             , t.ISSUER_NM
+             , t.TICKER
+             , t.ACTIVITY_DATE
+             , t.ACTIVITY_YEAR
+             , t.ACTIVITY_QTR
+             , t.CHANGE_PCT
+             , t.NOTES
+             , t.REG_DT
+          FROM (
+                SELECT a.*
+                     , ROW_NUMBER() OVER (PARTITION BY a.TICKER ORDER BY a.ACTIVITY_YEAR DESC, a.ACTIVITY_QTR DESC, a.ACTIVITY_ID DESC) AS rn
+                  FROM tbl_guru_recent_activity a
+                 WHERE 1=1
+                <if test="guruCd != null and guruCd != ''">
+                    AND a.GURU_CD = #{guruCd}
+                </if>
+               ) t
+          JOIN tbl_guru g ON g.GURU_CD = t.GURU_CD
+         WHERE t.rn = 1
+         ORDER BY t.TICKER ASC
+    </select>
+
+    <!-- 단건 조회 -->
+    <select id="findById" resultType="GuruRecentActivity">
+        SELECT a.ACTIVITY_ID
+             , a.GURU_CD
+             , g.INVESTOR_NM
+             , g.INVESTOR_KO_NM
+             , g.INVESTOR_NICKNAME
+             , a.ACTIVITY_TYPE
+             , a.ISSUER_NM
+             , a.TICKER
+             , a.ACTIVITY_DATE
+             , a.ACTIVITY_YEAR
+             , a.ACTIVITY_QTR
+             , a.CHANGE_PCT
+             , a.NOTES
+             , a.REG_DT
+          FROM tbl_guru_recent_activity a
+          JOIN tbl_guru g ON g.GURU_CD = a.GURU_CD
+         WHERE a.ACTIVITY_ID = #{id}
+    </select>
+
+</mapper>

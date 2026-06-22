@@ -1,0 +1,25 @@
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+mybatis:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+app:
+  frontend:
+    url: ${APP_FRONT_URL}
+
+springdoc:
+  swagger-ui:
+    enabled: true
+
+logging:
+  level:
+    "[com.investment.stockAdvisor]": DEBUG

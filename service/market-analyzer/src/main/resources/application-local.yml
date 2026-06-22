@@ -1,0 +1,24 @@
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+  ai:
+    openai:
+      base-url: ${KWAKAI_BASE_URL}
+      api-key: dummy
+      chat:
+        options:
+          model: gemma4-31b
+
+mybatis:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+springdoc:
+  swagger-ui:
+    enabled: true
+
+logging:
+  level:
+    "[com.investment.analyzer]": DEBUG

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.investment.stockadvisor.domain.repository.divergence.DivergenceDetectionResultMapper">
+
+    <insert id="insert">
+        INSERT INTO divergence_detection_result (
+            stock_cd, fiscal_year, fiscal_quarter,
+            divergence_type, severity, evidence, detected_at, batch_run_dt
+        ) VALUES (
+            #{stockCd}, #{fiscalYear}, #{fiscalQuarter},
+            #{divergenceType}, #{severity}, #{evidence}, #{detectedAt}, #{batchRunDt}
+        )
+    </insert>
+
+    <select id="findByStockCd" resultType="com.investment.stockadvisor.domain.entity.divergence.DivergenceDetectionResult">
+        SELECT id
+             , stock_cd
+             , fiscal_year
+             , fiscal_quarter
+             , divergence_type
+             , severity
+             , evidence
+             , detected_at
+             , batch_run_dt
+          FROM divergence_detection_result
+         WHERE stock_cd = #{stockCd}
+         ORDER BY batch_run_dt DESC, detected_at DESC
+    </select>
+
+    <select id="findByBatchRunDt" resultType="com.investment.stockadvisor.domain.entity.divergence.DivergenceDetectionResult">
+        SELECT id
+             , stock_cd
+             , fiscal_year
+             , fiscal_quarter
+             , divergence_type
+             , severity
+             , evidence
+             , detected_at
+             , batch_run_dt
+          FROM divergence_detection_result
+         WHERE batch_run_dt = #{batchRunDt}
+         ORDER BY severity DESC, stock_cd
+    </select>
+
+</mapper>

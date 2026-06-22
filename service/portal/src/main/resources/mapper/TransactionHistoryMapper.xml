@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.investment.portal.domain.repository.history.TransactionHistoryMapper">
+
+    <sql id="columns">
+        trans_id, portfolio_id, stock_cd, trans_type, trans_dt,
+        qty, price, amount, fee, tax, currency, memo, reg_dt
+    </sql>
+
+    <!-- 거래ID로 조회 -->
+    <select id="findByTransId" resultType="TransactionHistory">
+        SELECT <include refid="columns"/>
+          FROM tbl_transaction_history
+         WHERE trans_id = #{transId}
+    </select>
+
+    <!-- 포트폴리오ID로 거래 이력 조회 -->
+    <select id="findByPortfolioId" resultType="TransactionHistory">
+        SELECT <include refid="columns"/>
+          FROM tbl_transaction_history
+         WHERE portfolio_id = #{portfolioId}
+         ORDER BY trans_dt DESC, trans_id DESC
+    </select>
+
+    <!-- 포트폴리오ID + 종목코드로 거래 이력 조회 -->
+    <select id="findByPortfolioIdAndStockCd" resultType="TransactionHistory">
+        SELECT <include refid="columns"/>
+          FROM tbl_transaction_history
+         WHERE portfolio_id = #{portfolioId}
+           AND stock_cd = #{stockCd}
+         ORDER BY trans_dt DESC, trans_id DESC
+    </select>
+
+    <!-- 거래 이력 등록 (amount = qty * price 자동 계산) -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="transId">
+        INSERT INTO tbl_transaction_history (
+             portfolio_id
+           , stock_cd
+           , trans_type
+           , trans_dt
+           , qty
+           , price
+           , amount
+           , fee
+           , tax
+           , currency
+           , memo
+           , reg_dt
+        ) VALUES (
+             #{portfolioId}
+           , #{stockCd}
+           , #{transType}
+           , #{transDt}
+           , #{qty}
+           , #{price}
+           , #{qty} * #{price}
+           , COALESCE(#{fee}, 0)
+           , COALESCE(#{tax}, 0)
+           , COALESCE(#{currency}, 'USD')
+           , #{memo}
+           , NOW()
+        )
+    </insert>
+
+    <!-- 거래 이력 수정 -->
+    <update id="update">
+        UPDATE tbl_transaction_history
+           SET reg_dt = reg_dt
+        <if test="transType != null">
+             , trans_type = #{transType}
+        </if>
+        <if test="transDt != null">
+             , trans_dt = #{transDt}
+        </if>
+        <if test="qty != null">
+             , qty = #{qty}
+        </if>
+        <if test="price != null">
+             , price = #{price}
+        </if>
+        <if test="qty != null or price != null">
+             , amount = COALESCE(#{qty}, qty) * COALESCE(#{price}, price)
+        </if>
+        <if test="fee != null">
+             , fee = #{fee}
+        </if>
+        <if test="tax != null">
+             , tax = #{tax}
+        </if>
+        <if test="currency != null">
+             , currency = #{currency}
+        </if>
+        <if test="memo != null">
+             , memo = #{memo}
+        </if>
+         WHERE trans_id = #{transId}
+    </update>
+
+    <!-- 거래 이력 삭제 (물리 삭제) -->
+    <delete id="delete">
+        DELETE FROM tbl_transaction_history
+         WHERE trans_id = #{transId}
+    </delete>
+
+</mapper>

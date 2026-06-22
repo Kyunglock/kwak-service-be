@@ -1,0 +1,46 @@
+# 카카오 OAuth 설정
+kakao:
+  registration:
+    client-id: ${KAKAO_CLIENT_ID}
+    client-secret: ${KAKAO_SECRET}
+    redirect-uri: ${REDIRECT_URI}
+    authorization-grant-type: ${GRANT_TYPE}
+
+naver:
+  registration:
+    client-id: ${NAVER_CLIENT_ID}
+    client-secret: ${NAVER_SECRET}
+    redirect-uri: ${REDIRECT_URI}
+    authorization-grant-type: ${GRANT_TYPE}
+
+spring:
+  datasource:
+    url: ${DB_URL}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+
+mybatis:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+app:
+  frontend:
+    url: ${APP_FRONT_URL}
+
+springdoc:
+  swagger-ui:
+    enabled: true
+
+kwakai:
+  base-url: ${KWAKAI_BASE_URL}
+  model: gemma4-31b
+
+logging:
+  level:
+    "[com.investment.portal]": DEBUG
+    "[com.investment.stockAdvisor]": DEBUG

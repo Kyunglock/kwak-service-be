@@ -1,0 +1,72 @@
+spring:
+  profiles:
+    active: local
+  application:
+    name: portal
+
+  mvc:
+    async:
+      request-timeout: -1
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 3000
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 2
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: 3600000 # 액세스 토큰 유효시간: 1시간
+  refresh-expiration: 604800000 # 리프레시 토큰 유효시간: 7일
+
+mybatis:
+  mapper-locations: classpath:mapper/**/*.xml
+  type-aliases-package: com.investment
+  configuration:
+    map-underscore-to-camel-case: true
+
+server:
+  port: 8080
+  error:
+    whitelabel:
+      enabled: false
+    include-message: always
+    include-exception: false
+    include-stacktrace: never
+  servlet:
+    session:
+      cookie:
+        secure: false # HTTP 허용
+        same-site: lax # None이면 Secure 필수
+
+openai:
+  api-key: ${OPENAI_API_KEY:}
+  model: gpt-4o-mini
+
+stock:
+  api:
+    finnhub:
+      base-url: https://finnhub.io/api/v1
+      api-key: ${FINNHUB_API_KEY:}
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger
+    operations-sorter: alpha
+    tags-sorter: alpha
+  default-consumes-media-type: application/json
+  default-produces-media-type: application/json
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info

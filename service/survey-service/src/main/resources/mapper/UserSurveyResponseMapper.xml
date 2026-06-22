@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.investment.survey.domain.repository.UserSurveyResponseMapper">
+
+    <select id="findSurveyResponseById" resultType="UserSurveyResponse">
+        SELECT response_id
+             , user_id
+             , survey_id
+             , start_at
+             , completed_at
+             , status_code
+             , total_score
+             , risk_profile_code
+             , reg_dt
+          FROM tbl_user_survey_response
+         WHERE response_id = #{responseId}
+    </select>
+
+    <select id="findSurveyResponsesByUserId" resultType="UserSurveyResponse">
+        SELECT r.response_id
+             , r.user_id
+             , r.survey_id
+             , r.start_at
+             , r.completed_at
+             , r.status_code
+             , r.total_score
+             , r.risk_profile_code
+             , r.reg_dt
+             , (
+                SELECT COUNT(*)
+                  FROM tbl_user_survey_response
+                 WHERE survey_id = r.survey_id
+               ) AS total_participants
+          FROM tbl_user_survey_response r
+         WHERE r.user_id = #{userId}
+           AND r.response_id = (
+                SELECT response_id
+                  FROM tbl_user_survey_response
+                 WHERE user_id = r.user_id
+                   AND survey_id = r.survey_id
+                 ORDER BY reg_dt DESC
+                 LIMIT 1
+              )
+    </select>
+
+    <select id="findSurveyResponsesByUserAndSurvey" resultType="UserSurveyResponse">
+        SELECT response_id
+             , user_id
+             , survey_id
+             , start_at
+             , completed_at
+             , status_code
+             , total_score
+             , risk_profile_code
+             , reg_dt
+          FROM tbl_user_survey_response
+         WHERE user_id = #{userId}
+           AND survey_id = #{surveyId}
+         ORDER BY reg_dt DESC
+    </select>
+
+    <insert id="insertSurveyResponse" useGeneratedKeys="true" keyProperty="responseId">
+        INSERT INTO tbl_user_survey_response (
+             user_id
+           , survey_id
+           , start_at
+           , status_code
+           , reg_dt
+        ) VALUES (
+             #{userId}
+           , #{surveyId}
+           , NOW()
+           , 'IN_PROGRESS'
+           , NOW()
+        )
+    </insert>
+
+    <update id="updateSurveyResponse">
+        UPDATE tbl_user_survey_response
+           SET status_code = #{statusCode}
+        <if test="completedAt != null">
+             , completed_at = #{completedAt}
+        </if>
+        <if test="totalScore != null">
+             , total_score = #{totalScore}
+        </if>
+        <if test="riskProfileCode != null">
+             , risk_profile_code = #{riskProfileCode}
+        </if>
+         WHERE response_id = #{responseId}
+    </update>
+
+</mapper>

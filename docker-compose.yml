@@ -1,0 +1,135 @@
+services:
+  # ── Redis ───────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # ── API Gateway (포트 9000) ───────────────────────────────────────────
+  api-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    container_name: api-gateway
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - JWT_SECRET=${JWT_SECRET}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - PORTAL_URI=http://portal:8080
+      - SURVEY_URI=http://survey:8081
+      - ADVISOR_URI=http://stock-advisor:8082
+      - MARKET_URI=http://market-analyzer:8083
+    depends_on:
+      - redis
+    networks:
+      - backend
+
+  # ── Portal (포트 8080) ────────────────────────────────────────────
+  portal:
+    build:
+      context: .
+      dockerfile: Dockerfile.portal
+    container_name: portal
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - JWT_SECRET=${JWT_SECRET}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_NAME=${DB_NAME:-invdb}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - FINNHUB_API_KEY=${FINNHUB_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    depends_on:
+      - redis
+    networks:
+      - backend
+
+  # ── Survey Service (포트 8081) ────────────────────────────────────
+  survey:
+    build:
+      context: .
+      dockerfile: Dockerfile.survey
+    container_name: survey
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - JWT_SECRET=${JWT_SECRET}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_NAME=${DB_NAME:-invdb}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+    depends_on:
+      - redis
+    networks:
+      - backend
+
+  # ── Stock Advisor (포트 8082) ─────────────────────────────────────
+  stock-advisor:
+    build:
+      context: .
+      dockerfile: Dockerfile.stock
+    container_name: stock-advisor
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - JWT_SECRET=${JWT_SECRET}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_NAME=${DB_NAME:-invdb}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    depends_on:
+      - redis
+    networks:
+      - backend
+
+  # ── Market Analyzer (포트 8083) ───────────────────────────────────
+  market-analyzer:
+    build:
+      context: .
+      dockerfile: Dockerfile.market-analyzer
+    container_name: market-analyzer
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - JWT_SECRET=${JWT_SECRET}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_NAME=${DB_NAME:-invdb}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-dummy}
+    depends_on:
+      - redis
+    networks:
+      - backend
+
+networks:
+  backend:
+    driver: bridge

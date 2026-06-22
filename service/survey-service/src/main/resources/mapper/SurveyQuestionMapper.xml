@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.investment.survey.domain.repository.SurveyQuestionMapper">
+
+    <select id="findQuestionById" resultType="SurveyQuestion">
+        SELECT question_id
+             , survey_id
+             , question_number
+             , question_text
+             , question_type_code
+             , description
+             , sort_order
+             , reg_dt
+          FROM tbl_survey_question
+         WHERE question_id = #{questionId}
+    </select>
+
+    <select id="findQuestionsBySurveyId" resultType="SurveyQuestion">
+        SELECT question_id
+             , survey_id
+             , question_number
+             , question_text
+             , question_type_code
+             , description
+             , sort_order
+             , reg_dt
+          FROM tbl_survey_question
+         WHERE survey_id = #{surveyId}
+         ORDER BY sort_order, question_number
+    </select>
+
+    <select id="findQuestionsWithAnswers" resultType="QuestionWithAnswer">
+        SELECT a.question_id
+             , a.survey_id
+             , a.question_number
+             , a.question_text
+             , a.question_type_code
+             , a.description
+             , a.sort_order
+             , a.reg_dt
+             , c.selected_option_id
+             , c.selected_value
+          FROM tbl_survey_question a
+          JOIN (
+                  SELECT response_id
+                       , survey_id
+                       , user_id
+                       , ROW_NUMBER() OVER (
+                            PARTITION BY survey_id, user_id
+                            ORDER BY completed_at desc
+                       ) AS rn
+                    FROM tbl_user_survey_response
+               ) b
+            ON a.survey_id = b.survey_id
+           AND b.rn = 1
+          LEFT JOIN tbl_survey_answer c
+            ON b.response_id = c.response_id
+           AND a.question_id = c.question_id
+         WHERE a.survey_id = #{surveyId}
+           AND b.user_id = #{userId}
+         ORDER BY a.sort_order, a.question_number
+    </select>
+
+    <insert id="insertQuestion" useGeneratedKeys="true" keyProperty="questionId">
+        INSERT INTO tbl_survey_question (
+             survey_id
+           , question_number
+           , question_text
+           , question_type_code
+           , description
+           , sort_order
+           , reg_dt
+        ) VALUES (
+             #{surveyId}
+           , #{questionNumber}
+           , #{questionText}
+           , #{questionTypeCode}
+           , #{description}
+           , #{sortOrder}
+           , NOW()
+        )
+    </insert>
+
+    <update id="updateQuestion">
+        UPDATE tbl_survey_question
+           SET question_text = #{questionText}
+        <if test="questionNumber != null">
+             , question_number = #{questionNumber}
+        </if>
+        <if test="questionTypeCode != null">
+             , question_type_code = #{questionTypeCode}
+        </if>
+        <if test="description != null">
+             , description = #{description}
+        </if>
+        <if test="sortOrder != null">
+             , sort_order = #{sortOrder}
+        </if>
+         WHERE question_id = #{questionId}
+    </update>
+
+    <delete id="deleteQuestion">
+        DELETE FROM tbl_survey_question
+         WHERE question_id = #{questionId}
+    </delete>
+
+    <delete id="deleteQuestionsBySurveyId">
+        DELETE FROM tbl_survey_question
+         WHERE survey_id = #{surveyId}
+    </delete>
+
+</mapper>

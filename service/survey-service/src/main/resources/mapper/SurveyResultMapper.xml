@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.investment.survey.domain.repository.SurveyResultMapper">
+
+    <select id="findSurveyResultById" resultType="SurveyResult">
+        SELECT result_id
+             , user_id
+             , survey_id
+             , risk_score
+             , risk_level_code
+             , recommendation
+             , portfolio_suggestion
+             , analyzed_at
+             , valid_until
+             , use_yn
+          FROM tbl_survey_result
+         WHERE result_id = #{resultId}
+    </select>
+
+    <select id="findActiveSurveyResultByUserAndSurvey" resultType="SurveyResult">
+        SELECT result_id
+             , user_id
+             , survey_id
+             , risk_score
+             , risk_level_code
+             , recommendation
+             , portfolio_suggestion
+             , analyzed_at
+             , valid_until
+             , use_yn
+          FROM tbl_survey_result
+         WHERE user_id = #{userId}
+           AND survey_id = #{surveyId}
+           AND use_yn = 'Y'
+         ORDER BY analyzed_at DESC
+         LIMIT 1
+    </select>
+
+    <select id="findSurveyResultsByUserId" resultType="SurveyResult">
+        SELECT result_id
+             , user_id
+             , survey_id
+             , risk_score
+             , risk_level_code
+             , recommendation
+             , portfolio_suggestion
+             , analyzed_at
+             , valid_until
+             , use_yn
+          FROM tbl_survey_result
+         WHERE user_id = #{userId}
+           AND use_yn = 'Y'
+         ORDER BY analyzed_at DESC
+    </select>
+
+    <insert id="insertSurveyResult" useGeneratedKeys="true" keyProperty="resultId">
+        INSERT INTO tbl_survey_result (
+             user_id
+           , survey_id
+           , risk_score
+           , risk_level_code
+           , recommendation
+           , portfolio_suggestion
+           , analyzed_at
+           , valid_until
+           , use_yn
+        ) VALUES (
+             #{userId}
+           , #{surveyId}
+           , #{riskScore}
+           , #{riskLevelCode}
+           , #{recommendation}
+           , #{portfolioSuggestion}
+           , NOW()
+           , #{validUntil}
+           , 'Y'
+        )
+    </insert>
+
+    <update id="deactivateSurveyResultsByUserAndSurvey">
+        UPDATE tbl_survey_result
+           SET use_yn = 'N'
+         WHERE user_id = #{userId}
+           AND survey_id = #{surveyId}
+           AND use_yn = 'Y'
+    </update>
+
+</mapper>

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.investment.survey.domain.repository.CodeDetailMapper">
+
+    <select id="findCodeDetailById" resultType="CodeDetail">
+        SELECT code_detail_id, code_group_id, code_value, code_name, code_desc,
+               sort_order, use_yn, reg_dt, upd_dt
+          FROM tbl_code_detail
+         WHERE code_detail_id = #{codeDetailId}
+           AND use_yn = TRUE
+    </select>
+
+    <select id="findCodeDetailsByGroupId" resultType="CodeDetail">
+        SELECT code_detail_id, code_group_id, code_value, code_name, code_desc,
+               sort_order, use_yn, reg_dt, upd_dt
+          FROM tbl_code_detail
+         WHERE code_group_id = #{codeGroupId}
+           AND use_yn = TRUE
+         ORDER BY sort_order, code_value
+    </select>
+
+    <select id="findCodeDetailsByGroupCode" resultType="CodeDetail">
+        SELECT d.code_detail_id, d.code_group_id, d.code_value, d.code_name, d.code_desc,
+               d.sort_order, d.use_yn, d.reg_dt, d.upd_dt
+          FROM tbl_code_detail d
+          JOIN tbl_code_group g ON d.code_group_id = g.code_group_id
+         WHERE g.group_code = #{groupCode}
+           AND d.use_yn = TRUE
+           AND g.use_yn = TRUE
+         ORDER BY d.sort_order, d.code_value
+    </select>
+
+    <insert id="insertCodeDetail" useGeneratedKeys="true" keyProperty="codeDetailId">
+        INSERT INTO tbl_code_detail (code_group_id, code_value, code_name, code_desc, sort_order, use_yn, reg_dt, upd_dt)
+        VALUES (#{codeGroupId}, #{codeValue}, #{codeName}, #{codeDesc}, #{sortOrder}, TRUE, NOW(), NOW())
+    </insert>
+
+    <update id="updateCodeDetail">
+        UPDATE tbl_code_detail
+           SET upd_dt = NOW()
+        <if test="codeName != null">, code_name = #{codeName}</if>
+        <if test="codeDesc != null">, code_desc = #{codeDesc}</if>
+        <if test="sortOrder != null">, sort_order = #{sortOrder}</if>
+        <if test="codeValue != null">, code_value = #{codeValue}</if>
+         WHERE code_detail_id = #{codeDetailId} AND use_yn = TRUE
+    </update>
+
+    <update id="deleteCodeDetail">
+        UPDATE tbl_code_detail SET use_yn = FALSE, upd_dt = NOW()
+         WHERE code_detail_id = #{codeDetailId} AND use_yn = TRUE
+    </update>
+
+</mapper>

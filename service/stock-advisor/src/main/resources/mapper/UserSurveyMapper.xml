@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.investment.stockadvisor.domain.repository.survey.UserSurveyMapper">
+
+    <select id="findUserRiskProfileResults" resultType="RiskProfileResult">
+        SELECT C.DESCRIPTION
+             , SUM(D.ANSWER_SCORE) / 4 AS SCORE
+          FROM (
+                SELECT RESPONSE_ID
+                    , SURVEY_ID
+                    , USER_ID
+                    , ROW_NUMBER() OVER (
+                        PARTITION BY USER_ID, SURVEY_ID
+                        ORDER BY REG_DT DESC   -- 최신 응답 기준
+                        ) AS RN
+                FROM TBL_USER_SURVEY_RESPONSE
+                WHERE USER_ID = #{userId}          -- 서브쿼리 안에서 먼저 필터
+            ) A
+        JOIN TBL_SURVEY B
+            ON A.SURVEY_ID = B.SURVEY_ID
+        JOIN TBL_SURVEY_QUESTION C
+            ON B.SURVEY_ID = C.SURVEY_ID
+        JOIN TBL_SURVEY_ANSWER D
+            ON A.RESPONSE_ID = D.RESPONSE_ID
+        AND C.QUESTION_ID = D.QUESTION_ID
+        JOIN TBL_SURVEY_OPTION E
+            ON D.SELECTED_OPTION_ID = E.OPTION_ID
+        WHERE A.RN = 1
+        AND B.SURVEY_TYPE_CODE = 'RISK_PROFILE'
+        GROUP BY C.DESCRIPTION
+    </select>
+
+
+    <select id="findMarketRiskComparison" resultType="com.investment.stockadvisor.domain.entity.survey.MarketRiskComparison">
+        WITH LATEST_RESPONSES AS (
+            /* 각 유저의 MARKET_RISK_SURVEY 최신 응답 1건 */
+            SELECT R.RESPONSE_ID
+                 , R.USER_ID
+                 , R.SURVEY_ID
+              FROM TBL_USER_SURVEY_RESPONSE R
+              JOIN TBL_SURVEY S ON S.SURVEY_ID = R.SURVEY_ID
+               AND S.SURVEY_TYPE_CODE = 'MARKET_RISK_SURVEY'
+               AND S.USE_YN = 'Y'
+             WHERE R.RESPONSE_ID = (
+                   SELECT RESPONSE_ID
+                     FROM TBL_USER_SURVEY_RESPONSE
+                    WHERE USER_ID = R.USER_ID
+                      AND SURVEY_ID = R.SURVEY_ID
+                    ORDER BY REG_DT DESC
+                    LIMIT 1
+             )
+        ),
+        OPTION_COUNTS AS (
+            /* 질문별 선택지별 응답 수 및 전체 비율 */
+            SELECT A.QUESTION_ID
+                 , A.SELECTED_OPTION_ID
+                 , COUNT(*) AS CNT
+                 , ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(PARTITION BY A.QUESTION_ID), 0) AS OPTION_PCT
+              FROM LATEST_RESPONSES LR
+              JOIN TBL_SURVEY_ANSWER A ON A.RESPONSE_ID = LR.RESPONSE_ID
+             GROUP BY A.QUESTION_ID, A.SELECTED_OPTION_ID
+        ),
+        MAJORITY_OPTION AS (
+            /* 질문별 가장 많이 선택된 선택지 (동점 시 OPTION_ID 낮은 것 우선) */
+            SELECT QUESTION_ID
+                 , OPTION_ID
+                 , OPTION_TEXT
+              FROM (
+                   SELECT OC.QUESTION_ID
+                        , OC.SELECTED_OPTION_ID AS OPTION_ID
+                        , SO.OPTION_TEXT
+                        , ROW_NUMBER() OVER (PARTITION BY OC.QUESTION_ID ORDER BY OC.CNT DESC, OC.SELECTED_OPTION_ID ASC) AS RN
+                     FROM OPTION_COUNTS OC
+                     JOIN TBL_SURVEY_OPTION SO ON SO.OPTION_ID = OC.SELECTED_OPTION_ID
+                   ) T
+             WHERE T.RN = 1
+        )
+        SELECT Q.SORT_ORDER       AS sortOrder
+             , Q.QUESTION_TEXT    AS questionText
+             , MY_OPT.OPTION_TEXT AS myOptionText
+             , MJ.OPTION_TEXT     AS majorityOptionText
+             , CASE WHEN MY_A.SELECTED_OPTION_ID = MJ.OPTION_ID THEN 'Y' ELSE 'N' END AS matchYn
+             , OC.OPTION_PCT      AS myChoicePct
+          FROM TBL_SURVEY S
+          JOIN TBL_SURVEY_QUESTION Q       ON Q.SURVEY_ID = S.SURVEY_ID
+          JOIN LATEST_RESPONSES MY_LR      ON MY_LR.SURVEY_ID = S.SURVEY_ID
+                                          AND MY_LR.USER_ID = #{userId}
+          JOIN TBL_SURVEY_ANSWER MY_A      ON MY_A.RESPONSE_ID = MY_LR.RESPONSE_ID
+                                          AND MY_A.QUESTION_ID = Q.QUESTION_ID
+          JOIN TBL_SURVEY_OPTION MY_OPT    ON MY_OPT.OPTION_ID = MY_A.SELECTED_OPTION_ID
+          JOIN MAJORITY_OPTION MJ          ON MJ.QUESTION_ID = Q.QUESTION_ID
+          JOIN OPTION_COUNTS OC            ON OC.QUESTION_ID = Q.QUESTION_ID
+                                          AND OC.SELECTED_OPTION_ID = MY_A.SELECTED_OPTION_ID
+         WHERE S.SURVEY_TYPE_CODE = 'MARKET_RISK_SURVEY'
+           AND S.USE_YN = 'Y'
+         ORDER BY Q.SORT_ORDER
+    </select>
+
+    <select id="findUserPreferredSectors" resultType="com.investment.stockadvisor.domain.entity.survey.UserPreferredSector">
+        SELECT B.SECTOR
+             , B.SECTOR_KO
+             , ROUND(SUM(A.BUY_AMOUNT) * 100.0 / SUM(SUM(A.BUY_AMOUNT)) OVER(), 2) AS sectorPct
+          FROM TBL_PORTFOLIO_ITEM A
+          JOIN TBL_PORTFOLIO P
+            ON A.PORTFOLIO_ID = P.PORTFOLIO_ID
+           AND P.USE_YN = 'Y'
+          JOIN TBL_COMPANIES B
+            ON A.STOCK_CD = B.TICKER
+         WHERE A.USE_YN = 'Y'
+         GROUP BY B.SECTOR_KO, B.SECTOR
+    </select>
+
+</mapper>

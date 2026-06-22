@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.investment.stockadvisor.domain.repository.guru.GuruPortfoliosMapper">
+
+    <!-- 목록 조회 -->
+    <select id="findGuruPortfolioAll" resultType="GuruPortfolio">
+        SELECT B.GURU_PORTFOLIOS_ID AS id
+             , B.GURU_ID
+             , A.INVESTOR_NM
+             , A.INVESTOR_KO_NM
+             , A.INVESTOR_NICKNAME
+             , A.INVEST_PHILOSOPHY
+             , A.FAMOUS_QUOTE
+             , B.ISSUER_NM
+             , B.TICKER
+             , B.RANK_NO
+             , B.PORTFOLIO_PCT
+             , C.ACTIVITY_DATE
+             , C.ACTIVITY_YEAR
+             , C.ACTIVITY_QTR
+             , C.CHANGE_PCT
+             , B.REG_DT
+          FROM TBL_GURU A
+          JOIN TBL_GURU_PORTFOLIOS B
+            ON A.GURU_ID = B.GURU_ID
+          LEFT OUTER JOIN
+          (
+              SELECT *
+                FROM tbl_guru_recent_activity
+               WHERE 1=1
+              <if test="searchRequest.activityYear != null">
+                 AND ACTIVITY_YEAR = #{searchRequest.activityYear}
+              </if>
+              <if test="searchRequest.activityQtr != null">
+                 AND ACTIVITY_QTR = #{searchRequest.activityQtr}
+              </if>
+          ) C
+            ON A.GURU_CD = C.GURU_CD
+           AND B.TICKER = C.TICKER
+         WHERE 1=1
+        <if test="searchRequest.investorNm != null and searchRequest.investorNm != ''">
+            AND A.INVESTOR_NM LIKE CONCAT('%', #{searchRequest.investorNm}, '%')
+        </if>
+        <if test="searchRequest.ticker != null and searchRequest.ticker != ''">
+            AND B.TICKER = #{searchRequest.ticker}
+        </if>
+         ORDER BY A.GURU_ID, B.RANK_NO
+    </select>
+
+    <!-- 단건 조회 -->
+    <select id="findById" resultType="GuruPortfolio">
+        SELECT p.GURU_PORTFOLIOS_ID AS id
+             , p.GURU_ID
+             , g.INVESTOR_NM
+             , g.INVESTOR_KO_NM
+             , g.INVESTOR_NICKNAME
+             , g.INVEST_PHILOSOPHY
+             , g.FAMOUS_QUOTE
+             , p.ISSUER_NM
+             , p.TICKER
+             , p.RANK_NO
+             , p.PORTFOLIO_PCT
+             , p.REPORT_DATE
+             , p.REG_DT
+          FROM tbl_guru_portfolios p
+          JOIN tbl_guru g ON g.GURU_ID = p.GURU_ID
+         WHERE p.GURU_PORTFOLIOS_ID = #{id}
+    </select>
+
+</mapper>

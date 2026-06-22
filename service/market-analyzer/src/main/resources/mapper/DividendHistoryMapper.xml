@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.investment.analyzer.market_analyzer.domain.repository.dividend.DividendHistoryMapper">
+
+    <select id="findByStockCd" resultType="com.investment.analyzer.market_analyzer.domain.entity.dividend.DividendHistory">
+        SELECT dividend_id AS dividendId
+             , stock_cd    AS stockCd
+             , ex_date     AS exDate
+             , dividend
+             , payment_dt  AS paymentDt
+             , reg_dt      AS regDt
+          FROM tbl_dividend_history
+         WHERE stock_cd = #{stockCd}
+         ORDER BY ex_date DESC
+    </select>
+
+    <select id="findRecentByStockCd" resultType="com.investment.analyzer.market_analyzer.domain.entity.dividend.DividendHistory">
+        SELECT dividend_id AS dividendId
+             , stock_cd    AS stockCd
+             , ex_date     AS exDate
+             , dividend
+             , payment_dt  AS paymentDt
+             , reg_dt      AS regDt
+          FROM tbl_dividend_history
+         WHERE stock_cd = #{stockCd}
+         ORDER BY ex_date DESC
+         LIMIT #{limit}
+    </select>
+
+    <!-- 여러 종목의 최근 N건 배당 이력 한 번에 조회 (ROW_NUMBER 윈도우 함수) -->
+    <select id="findRecentBatchByStockCds" resultType="com.investment.analyzer.market_analyzer.domain.entity.dividend.DividendHistory">
+        SELECT dividend_id AS dividendId
+             , stock_cd    AS stockCd
+             , ex_date     AS exDate
+             , dividend
+             , payment_dt  AS paymentDt
+             , reg_dt      AS regDt
+          FROM (
+                SELECT dividend_id
+                     , stock_cd
+                     , ex_date
+                     , dividend
+                     , payment_dt
+                     , reg_dt
+                     , ROW_NUMBER() OVER (PARTITION BY stock_cd ORDER BY ex_date DESC) AS rn
+                  FROM tbl_dividend_history
+                 WHERE stock_cd IN
+                 <foreach item="item" collection="stockCds" open="(" separator="," close=")">
+                     #{item}
+                 </foreach>
+               ) ranked
+         WHERE rn &lt;= #{limit}
+         ORDER BY stock_cd, ex_date DESC
+    </select>
+
+</mapper>

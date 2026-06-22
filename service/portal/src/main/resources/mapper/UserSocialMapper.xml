@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.investment.portal.domain.repository.user.UserSocialMapper">    
+    <select id="findByProviderAndProviderUserId" resultType="UserSocial">
+        SELECT social_id
+             , user_id
+             , provider
+             , provider_user_id
+             , connected_dt
+             , last_login_dt
+             , token_expired_dt
+             , use_yn
+          FROM tbl_user_social
+         WHERE provider = #{provider}
+           AND provider_user_id = #{providerUserId}
+           AND use_yn = 'Y'
+    </select>
+
+    <insert id="insert">
+        INSERT INTO tbl_user_social (
+             user_id
+           , provider
+           , provider_user_id
+           , connected_dt
+           , last_login_dt
+           , use_yn
+        ) VALUES (
+             #{userId}
+           , #{provider}
+           , #{providerUserId}
+           , #{connectedDt}
+           , #{lastLoginDt}
+           , #{useYn}
+        )
+    </insert>
+    
+    <update id="update">
+        UPDATE tbl_user_social
+        SET last_login_dt = #{lastLoginDt}
+        WHERE social_id = #{socialId}
+    </update>
+</mapper>
