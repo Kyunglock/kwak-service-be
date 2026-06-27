@@ -45,10 +45,20 @@ public class JwtGlobalFilter implements GlobalFilter, Ordered {
     private static final String BLACKLIST_PREFIX = "auth:blacklist:";
     private static final String SESSION_ID_HEADER = "X-User-Session-Id";
 
+    // StripPrefix 필터는 라우팅 이후에 적용되므로, JWT 필터가 보는 경로는
+    // 서비스 prefix(/portal, /survey 등)가 붙어 있는 원본 경로다.
     private static final List<String> PUBLIC_PATHS = List.of(
+            // prefix 없는 경로 (직접 접근 또는 내부 호출)
             "/api/v1/auth/**",
             "/api/v1/stocks/price/**",
-            "/api/v1/kwakai/**"
+            "/api/v1/kwakai/**",
+            // 게이트웨이 prefix 포함 경로
+            "/portal/api/v1/auth/**",
+            "/portal/api/v1/stocks/price/**",
+            "/portal/api/v1/kwakai/**",
+            "/survey/api/v1/auth/**",
+            "/advisor/api/v1/auth/**",
+            "/market/api/v1/auth/**"
     );
 
     private final SecretKey secretKey;

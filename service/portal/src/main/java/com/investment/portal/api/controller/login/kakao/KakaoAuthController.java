@@ -50,7 +50,7 @@ public class KakaoAuthController {
             .maxAge(60 * 60)
             .path("/")
             .httpOnly(false)
-            .secure(false)
+            .secure(true)
             .sameSite("Lax")
             .build();
 
@@ -60,7 +60,7 @@ public class KakaoAuthController {
             .maxAge(7 * 24 * 60 * 60)
             .path("/")
             .httpOnly(false)
-            .secure(false)
+            .secure(true)
             .sameSite("Lax")
             .build();
 

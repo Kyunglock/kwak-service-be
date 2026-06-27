@@ -32,7 +32,7 @@ public class GuestAuthController {
                 .maxAge(60 * 60)
                 .path("/")
                 .httpOnly(false)
-                .secure(false)
+                .secure(true)
                 .sameSite("Lax")
                 .build();
 
@@ -41,7 +41,7 @@ public class GuestAuthController {
                 .maxAge(7 * 24 * 60 * 60)
                 .path("/")
                 .httpOnly(false)
-                .secure(false)
+                .secure(true)
                 .sameSite("Lax")
                 .build();
 

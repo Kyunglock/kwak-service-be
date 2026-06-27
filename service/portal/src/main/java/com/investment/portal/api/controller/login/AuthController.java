@@ -82,7 +82,7 @@ public class AuthController {
                 .maxAge(60 * 60)
                 .path("/")
                 .httpOnly(false)
-                .secure(false)
+                .secure(true)
                 .sameSite("Lax")
                 .build();
         response.addHeader("Set-Cookie", accessCookie.toString());
@@ -118,7 +118,7 @@ public class AuthController {
                 .maxAge(0)
                 .path("/")
                 .httpOnly(false)
-                .secure(false)
+                .secure(true)
                 .sameSite("Lax")
                 .build();
     }
