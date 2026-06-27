@@ -6,6 +6,10 @@ import java.util.List;
 
 public interface PortfolioService {
 
+    PortfolioDashboardResponse getDashboard(String userId);
+
+    PortfolioDetailResponse getDetail(Long portfolioId);
+
     /**
      * 포트폴리오 단건 조회
      */

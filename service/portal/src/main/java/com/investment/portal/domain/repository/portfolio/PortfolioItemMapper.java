@@ -1,6 +1,7 @@
 package com.investment.portal.domain.repository.portfolio;
 
 import com.investment.portal.application.dto.portfolio.item.PortfolioItemSearchRequest;
+import com.investment.portal.application.dto.portfolio.item.PortfolioPositionDto;
 import com.investment.portal.domain.entity.portfolio.PortfolioItem;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -14,6 +15,8 @@ public interface PortfolioItemMapper {
     PortfolioItem findByItemId(@Param("itemId") Long itemId);
 
     List<PortfolioItem> findByPortfolioId(@Param("portfolioId") Long portfolioId);
+
+    List<PortfolioPositionDto> findWithCompanyByPortfolioId(@Param("portfolioId") Long portfolioId);
 
     PortfolioItem findByPortfolioIdAndStockCd(
             @Param("portfolioId") Long portfolioId,

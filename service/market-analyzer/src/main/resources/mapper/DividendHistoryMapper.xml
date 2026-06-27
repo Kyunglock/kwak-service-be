@@ -55,4 +55,32 @@
          ORDER BY stock_cd, ex_date DESC
     </select>
 
+    <!-- 포트폴리오 보유 종목의 최근 N건 배당 이력 일괄 조회 -->
+    <select id="findRecentBatchByPortfolioId" resultType="com.investment.analyzer.market_analyzer.domain.entity.dividend.DividendHistory">
+        SELECT dividend_id AS dividendId
+             , stock_cd    AS stockCd
+             , ex_date     AS exDate
+             , dividend
+             , payment_dt  AS paymentDt
+             , reg_dt      AS regDt
+          FROM (
+                SELECT dividend_id
+                     , stock_cd
+                     , ex_date
+                     , dividend
+                     , payment_dt
+                     , reg_dt
+                     , ROW_NUMBER() OVER (PARTITION BY stock_cd ORDER BY ex_date DESC) AS rn
+                  FROM tbl_dividend_history
+                 WHERE stock_cd IN (
+                           SELECT DISTINCT stock_cd COLLATE utf8mb4_0900_ai_ci
+                             FROM tbl_portfolio_item
+                            WHERE portfolio_id = #{portfolioId}
+                              AND use_yn = 'Y'
+                       )
+               ) ranked
+         WHERE rn &lt;= #{limit}
+         ORDER BY stock_cd, ex_date DESC
+    </select>
+
 </mapper>

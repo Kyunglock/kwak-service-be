@@ -1,7 +1,11 @@
 package com.investment.portal.application.service.portfolio;
 
+import com.investment.portal.application.dto.history.transaction.TransactionHistoryResponse;
 import com.investment.portal.application.dto.portfolio.*;
+import com.investment.portal.application.dto.portfolio.item.PortfolioPositionDto;
+import com.investment.portal.application.service.history.TransactionHistoryService;
 import com.investment.portal.domain.entity.portfolio.Portfolio;
+import com.investment.portal.domain.repository.portfolio.PortfolioItemMapper;
 import com.investment.portal.domain.repository.portfolio.PortfolioMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +19,8 @@ import java.util.List;
 public class PortfolioServiceImpl implements PortfolioService {
 
     private final PortfolioMapper portfolioMapper;
+    private final PortfolioItemMapper portfolioItemMapper;
+    private final TransactionHistoryService transactionHistoryService;
 
     @Override
     public PortfolioResponse getPortfolio(Long portfolioId) {
@@ -81,6 +87,25 @@ public class PortfolioServiceImpl implements PortfolioService {
 
         portfolioMapper.delete(portfolioId);
         log.info("[Portfolio] 포트폴리오 삭제 완료 - portfolioId: {}", portfolioId);
+    }
+
+    @Override
+    public PortfolioDashboardResponse getDashboard(String userId) {
+        List<PortfolioResponse> portfolios = getMyPortfolios(userId);
+        if (portfolios.isEmpty()) {
+            return new PortfolioDashboardResponse(portfolios, null, List.of(), List.of());
+        }
+        Long activeId = portfolios.get(0).portfolioId();
+        List<PortfolioPositionDto> positions = portfolioItemMapper.findWithCompanyByPortfolioId(activeId);
+        List<TransactionHistoryResponse> transactions = transactionHistoryService.getTransactionsByPortfolioId(activeId);
+        return new PortfolioDashboardResponse(portfolios, activeId, positions, transactions);
+    }
+
+    @Override
+    public PortfolioDetailResponse getDetail(Long portfolioId) {
+        List<PortfolioPositionDto> positions = portfolioItemMapper.findWithCompanyByPortfolioId(portfolioId);
+        List<TransactionHistoryResponse> transactions = transactionHistoryService.getTransactionsByPortfolioId(portfolioId);
+        return new PortfolioDetailResponse(portfolioId, positions, transactions);
     }
 
     private PortfolioResponse toResponse(Portfolio portfolio) {

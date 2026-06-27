@@ -14,4 +14,6 @@ public interface DividendHistoryMapper {
     List<DividendHistory> findRecentByStockCd(@Param("stockCd") String stockCd, @Param("limit") int limit);
 
     List<DividendHistory> findRecentBatchByStockCds(@Param("stockCds") List<String> stockCds, @Param("limit") int limit);
+
+    List<DividendHistory> findRecentBatchByPortfolioId(@Param("portfolioId") Long portfolioId, @Param("limit") int limit);
 }

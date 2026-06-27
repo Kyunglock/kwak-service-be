@@ -29,6 +29,20 @@ public class PortfolioController {
         return ResponseUtil.success(responses, "조회 성공 (" + responses.size() + "건)");
     }
 
+    @Operation(summary = "종목탭 대시보드", description = "탭 진입 시 포트폴리오 목록·포지션·거래 이력을 한 번에 반환합니다")
+    @GetMapping("/dashboard")
+    public ResponseEntity<?> getDashboard(@AuthenticationPrincipal String userId) {
+        return ResponseUtil.success(portfolioService.getDashboard(userId));
+    }
+
+    @Operation(summary = "포트폴리오 상세", description = "포트폴리오 전환 시 포지션·거래 이력을 반환합니다")
+    @GetMapping("/{portfolioId}/detail")
+    public ResponseEntity<?> getDetail(
+            @Parameter(description = "포트폴리오ID", example = "1")
+            @PathVariable Long portfolioId) {
+        return ResponseUtil.success(portfolioService.getDetail(portfolioId));
+    }
+
     @Operation(summary = "포트폴리오 단건 조회", description = "포트폴리오ID로 조회합니다")
     @GetMapping("/{portfolioId}")
     public ResponseEntity<?> getPortfolio(

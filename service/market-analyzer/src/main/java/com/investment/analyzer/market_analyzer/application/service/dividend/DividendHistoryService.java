@@ -9,4 +9,6 @@ public interface DividendHistoryService {
     List<DividendHistoryResponse> findByStockCd(String stockCd);
     List<DividendHistoryResponse> findRecentByStockCd(String stockCd, int limit);
     Map<String, List<DividendHistoryResponse>> findRecentBatch(List<String> stockCds, int limit);
+
+    Map<String, List<DividendHistoryResponse>> findRecentByPortfolioId(Long portfolioId, int limit);
 }

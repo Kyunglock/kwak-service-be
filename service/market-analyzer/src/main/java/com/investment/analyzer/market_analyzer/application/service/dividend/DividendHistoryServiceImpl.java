@@ -35,4 +35,11 @@ public class DividendHistoryServiceImpl implements DividendHistoryService {
                 .map(DividendHistoryResponse::from)
                 .collect(Collectors.groupingBy(DividendHistoryResponse::getStockCd));
     }
+
+    @Override
+    public Map<String, List<DividendHistoryResponse>> findRecentByPortfolioId(Long portfolioId, int limit) {
+        return dividendHistoryMapper.findRecentBatchByPortfolioId(portfolioId, limit).stream()
+                .map(DividendHistoryResponse::from)
+                .collect(Collectors.groupingBy(DividendHistoryResponse::getStockCd));
+    }
 }

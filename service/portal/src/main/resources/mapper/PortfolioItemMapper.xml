@@ -23,6 +23,28 @@
            AND use_yn = 'Y'
     </select>
 
+    <!-- 포트폴리오ID로 종목 목록 + 종목명·섹터 조인 조회 -->
+    <select id="findWithCompanyByPortfolioId" resultType="com.investment.portal.application.dto.portfolio.item.PortfolioPositionDto">
+        SELECT pi.item_id        AS itemId
+             , pi.portfolio_id   AS portfolioId
+             , pi.stock_cd       AS stockCd
+             , c.company_name    AS stockNm
+             , c.company_name_ko AS stockNmKo
+             , c.sector          AS sector
+             , c.sector_ko       AS sectorKo
+             , pi.hold_qty       AS holdQty
+             , pi.buy_price      AS buyPrice
+             , pi.buy_dt         AS buyDt
+             , pi.buy_amount     AS buyAmount
+             , pi.currency
+             , pi.memo
+          FROM tbl_portfolio_item pi
+          LEFT JOIN tbl_companies c ON pi.stock_cd = c.ticker
+         WHERE pi.portfolio_id = #{portfolioId}
+           AND pi.use_yn = 'Y'
+         ORDER BY pi.buy_dt DESC
+    </select>
+
     <!-- 포트폴리오ID로 종목 목록 조회 -->
     <select id="findByPortfolioId" resultType="PortfolioItem">
         SELECT item_id
