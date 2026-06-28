@@ -19,6 +19,18 @@ public interface SurveyMapper {
 
     List<SurveyResponse> findSurveyWithMyResponses(@Param("userId") String userId);
 
+    List<SurveyResponse> findSurveyWithMyResponsesPaged(
+            @Param("userId") String userId,
+            @Param("keyword") String keyword,
+            @Param("offset") int offset,
+            @Param("size") int size,
+            @Param("orderBy") String orderBy,
+            @Param("orderDir") String orderDir);
+
+    int countSurveyWithMyResponses(
+            @Param("userId") String userId,
+            @Param("keyword") String keyword);
+
     int insertSurvey(Survey survey);
 
     int updateSurvey(Survey survey);

@@ -25,6 +25,8 @@ naver:
 app:
   frontend:
     url: https://kwaklabs.com
+  cookie:
+    secure: true
 
 kwakai:
   base-url: ${KWAKAI_BASE_URL}

@@ -126,4 +126,58 @@
         ORDER BY S.REG_DT DESC
     </select>
 
+    <select id="countSurveyWithMyResponses" resultType="int">
+        SELECT COUNT(*)
+          FROM TBL_SURVEY S
+         WHERE S.USE_YN = 'Y'
+        <if test="keyword != null and keyword != ''">
+           AND (S.SURVEY_NAME LIKE CONCAT('%', #{keyword}, '%')
+             OR S.DESCRIPTION LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </select>
+
+    <select id="findSurveyWithMyResponsesPaged" resultType="SurveyResponse">
+        SELECT S.SURVEY_ID
+             , S.SURVEY_NAME
+             , S.DESCRIPTION
+             , S.SURVEY_TYPE_CODE
+             , S.REG_DT
+             , R.RESPONSE_ID
+             , R.COMPLETED_AT
+             , R.STATUS_CODE
+             , R.TOTAL_PARTICIPANTS
+          FROM TBL_SURVEY S
+          LEFT JOIN (
+                    SELECT r.response_id
+                         , r.survey_id
+                         , r.start_at
+                         , r.completed_at
+                         , r.status_code
+                         , r.total_score
+                         , r.risk_profile_code
+                         , (
+                             SELECT COUNT(*)
+                               FROM tbl_user_survey_response
+                              WHERE survey_id = r.survey_id
+                           ) AS total_participants
+                      FROM tbl_user_survey_response r
+                     WHERE r.user_id = #{userId}
+                       AND r.response_id = (
+                               SELECT response_id
+                                 FROM tbl_user_survey_response
+                                WHERE user_id = r.user_id
+                                  AND survey_id = r.survey_id
+                                ORDER BY reg_dt DESC
+                                LIMIT 1
+                           )
+                    ) R ON S.SURVEY_ID = R.SURVEY_ID
+         WHERE S.USE_YN = 'Y'
+        <if test="keyword != null and keyword != ''">
+           AND (S.SURVEY_NAME LIKE CONCAT('%', #{keyword}, '%')
+             OR S.DESCRIPTION LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        ORDER BY ${orderBy} ${orderDir}
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
 </mapper>

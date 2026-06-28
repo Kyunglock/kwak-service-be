@@ -51,3 +51,4 @@ docker-compose.override.yml
 *.bak
 service/dividend-collector/
 dump-invdb.sql
+.understand-anything/

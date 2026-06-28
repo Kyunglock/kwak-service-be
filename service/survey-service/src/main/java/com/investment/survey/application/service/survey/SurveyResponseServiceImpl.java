@@ -6,6 +6,7 @@ import com.investment.survey.application.dto.response.SurveySubmitResponse;
 import com.investment.survey.application.dto.response.SurveyWithMyResponse;
 import com.investment.survey.application.dto.result.SurveyResultResponse;
 import com.investment.survey.domain.entity.*;
+import kwak.common.application.dto.PageResponse;
 import com.investment.survey.domain.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -144,10 +145,34 @@ public class SurveyResponseServiceImpl implements SurveyResponseService {
 
     @Override
     public List<SurveyWithMyResponse> getSurveyWithMyResponses(String userId) {
-      List<SurveyWithMyResponse> result = surveyMapper.findSurveyWithMyResponses(userId).stream()
+        return surveyMapper.findSurveyWithMyResponses(userId).stream()
                 .map(this::toSurveyWithMyResponse)
                 .toList();
-      return result;
+    }
+
+    @Override
+    public PageResponse<SurveyWithMyResponse> getSurveyWithMyResponsesPaged(
+            String userId, String keyword, int page, int size, String sort) {
+        String[] orderParts = parseSortForSurvey(sort);
+        int offset = page * size;
+        int total = surveyMapper.countSurveyWithMyResponses(userId, keyword);
+        List<SurveyWithMyResponse> content = surveyMapper
+                .findSurveyWithMyResponsesPaged(userId, keyword, offset, size, orderParts[0], orderParts[1])
+                .stream()
+                .map(this::toSurveyWithMyResponse)
+                .toList();
+        return PageResponse.of(content, page + 1, size, total);
+    }
+
+    private String[] parseSortForSurvey(String sort) {
+        if (sort == null || sort.isBlank()) return new String[]{"S.REG_DT", "DESC"};
+        String[] parts = sort.split(",");
+        String col = switch (parts[0].trim()) {
+            case "surveyName" -> "S.SURVEY_NAME";
+            default -> "S.REG_DT";
+        };
+        String dir = parts.length > 1 && "asc".equalsIgnoreCase(parts[1].trim()) ? "ASC" : "DESC";
+        return new String[]{col, dir};
     }
 
     /**

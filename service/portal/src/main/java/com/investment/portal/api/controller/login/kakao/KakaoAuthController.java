@@ -28,6 +28,9 @@ public class KakaoAuthController {
     @Value("${app.frontend.url}")
     private String frontendUrl;
 
+    @Value("${app.cookie.secure:true}")
+    private boolean cookieSecure;
+
     @GetMapping("/login")
     @Operation(summary = "카카오 로그인 페이지 리다이렉트", description = "카카오 OAuth 인증 페이지로 리다이렉트")
     public ResponseEntity<?> redirectToKakaoLogin() {
@@ -50,7 +53,7 @@ public class KakaoAuthController {
             .maxAge(60 * 60)
             .path("/")
             .httpOnly(false)
-            .secure(true)
+            .secure(cookieSecure)
             .sameSite("Lax")
             .build();
 
@@ -60,7 +63,7 @@ public class KakaoAuthController {
             .maxAge(7 * 24 * 60 * 60)
             .path("/")
             .httpOnly(false)
-            .secure(true)
+            .secure(cookieSecure)
             .sameSite("Lax")
             .build();
 

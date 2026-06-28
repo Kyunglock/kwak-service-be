@@ -31,6 +31,8 @@ mybatis:
 app:
   frontend:
     url: ${APP_FRONT_URL}
+  cookie:
+    secure: false
 
 springdoc:
   swagger-ui:

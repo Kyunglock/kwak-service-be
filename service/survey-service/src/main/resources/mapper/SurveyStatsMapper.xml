@@ -29,4 +29,44 @@
         GROUP BY A.SURVEY_ID, A.SURVEY_NAME, A.REG_DT, R.STATUS_CODE, R.RESPONSE_ID
         ORDER BY MAX(B.REG_DT) DESC
     </select>
+
+    <select id="countSurveyStats" resultType="int">
+        SELECT COUNT(DISTINCT A.SURVEY_ID)
+          FROM TBL_SURVEY A
+          JOIN TBL_USER_SURVEY_RESPONSE B ON A.SURVEY_ID = B.SURVEY_ID
+         WHERE 1=1
+        <if test="keyword != null and keyword != ''">
+           AND A.SURVEY_NAME LIKE CONCAT('%', #{keyword}, '%')
+        </if>
+    </select>
+
+    <select id="findAllSurveyStatsPaged" resultType="SurveyStats">
+        SELECT A.SURVEY_ID
+             , A.SURVEY_NAME
+             , A.REG_DT
+             , COUNT(B.SURVEY_ID) AS TOTAL_PARTICIPANTS
+             , R.STATUS_CODE
+             , R.RESPONSE_ID
+          FROM TBL_SURVEY A
+          JOIN TBL_USER_SURVEY_RESPONSE B ON A.SURVEY_ID = B.SURVEY_ID
+          LEFT JOIN (
+              SELECT SURVEY_ID, STATUS_CODE, RESPONSE_ID
+                FROM (
+                    SELECT SURVEY_ID
+                         , STATUS_CODE
+                         , RESPONSE_ID
+                         , ROW_NUMBER() OVER (PARTITION BY SURVEY_ID ORDER BY REG_DT DESC) AS RN
+                      FROM TBL_USER_SURVEY_RESPONSE
+                     WHERE USER_ID = #{userId}
+                ) RANKED
+               WHERE RN = 1
+          ) R ON A.SURVEY_ID = R.SURVEY_ID
+         WHERE 1=1
+        <if test="keyword != null and keyword != ''">
+           AND A.SURVEY_NAME LIKE CONCAT('%', #{keyword}, '%')
+        </if>
+        GROUP BY A.SURVEY_ID, A.SURVEY_NAME, A.REG_DT, R.STATUS_CODE, R.RESPONSE_ID
+        ORDER BY ${orderBy} ${orderDir}
+        LIMIT #{size} OFFSET #{offset}
+    </select>
 </mapper>

@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import kwak.common.util.ResponseUtil;
+import kwak.common.application.dto.PageResponse;
 import kwak.common.application.dto.RokResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -67,5 +68,17 @@ public class SurveyResponseController {
     @GetMapping("/with-my-responses")
     public ResponseEntity<RokResponse<List<SurveyWithMyResponse>>> getSurveyWithMyResponses(@AuthenticationPrincipal String userId) {
         return ResponseUtil.success(responseService.getSurveyWithMyResponses(userId), "조회 성공");
+    }
+
+    @Operation(summary = "설문 목록 조회 (검색 + 페이징)")
+    @GetMapping("/with-my-responses/paged")
+    public ResponseEntity<RokResponse<PageResponse<SurveyWithMyResponse>>> getSurveyWithMyResponsesPaged(
+            @AuthenticationPrincipal String userId,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "regDt,desc") String sort) {
+        return ResponseUtil.success(
+                responseService.getSurveyWithMyResponsesPaged(userId, keyword, page, size, sort), "조회 성공");
     }
 }

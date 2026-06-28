@@ -12,6 +12,7 @@ import kwak.common.util.ResponseUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -24,6 +25,9 @@ import org.springframework.web.bind.annotation.*;
 public class StandardAuthController {
 
     private final StandardAuthService standardAuthService;
+
+    @Value("${app.cookie.secure:true}")
+    private boolean cookieSecure;
 
     @PostMapping("/login")
     @Operation(summary = "일반 로그인", description = "이메일과 비밀번호로 로그인")
@@ -40,7 +44,7 @@ public class StandardAuthController {
                 .maxAge(60 * 60)
                 .path("/")
                 .httpOnly(false)
-                .secure(true)
+                .secure(cookieSecure)
                 .sameSite("Lax")
                 .build();
 
@@ -50,7 +54,7 @@ public class StandardAuthController {
                 .maxAge(7 * 24 * 60 * 60)
                 .path("/")
                 .httpOnly(false)
-                .secure(true)
+                .secure(cookieSecure)
                 .sameSite("Lax")
                 .build();
 

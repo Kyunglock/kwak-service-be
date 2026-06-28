@@ -11,6 +11,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import kwak.common.util.ResponseUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -27,6 +28,9 @@ public class AuthController {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final RedisTokenStore redisTokenStore;
+
+    @Value("${app.cookie.secure:true}")
+    private boolean cookieSecure;
 
     @PostMapping("/logout")
     @Operation(summary = "로그아웃", description = "JWT 토큰 무효화 및 쿠키 삭제")
@@ -82,7 +86,7 @@ public class AuthController {
                 .maxAge(60 * 60)
                 .path("/")
                 .httpOnly(false)
-                .secure(true)
+                .secure(cookieSecure)
                 .sameSite("Lax")
                 .build();
         response.addHeader("Set-Cookie", accessCookie.toString());
@@ -118,7 +122,7 @@ public class AuthController {
                 .maxAge(0)
                 .path("/")
                 .httpOnly(false)
-                .secure(true)
+                .secure(cookieSecure)
                 .sameSite("Lax")
                 .build();
     }
