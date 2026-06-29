@@ -186,7 +186,11 @@ public class InsightServiceImpl implements InsightService {
             } else {
                 level = "높음"; reason = "밸류에이션 부담이 낮아 보유 성향과 무난합니다.";
             }
-            fit.add(Map.of("ticker", s.companyName(), "level", level, "reason", reason));
+            java.util.Map<String, Object> entry = new java.util.LinkedHashMap<>();
+            entry.put("ticker", s.companyName() != null ? s.companyName() : s.ticker());
+            entry.put("level", level);
+            entry.put("reason", reason);
+            fit.add(entry);
         }
         List<String> rebalance = new ArrayList<>();
         long growth = infoList.stream().filter(x -> x.peRatio() > 25).count();
