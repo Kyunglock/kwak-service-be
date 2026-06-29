@@ -18,9 +18,12 @@ class InsightBuildStatusServiceTest {
         StringRedisTemplate redis = mock(StringRedisTemplate.class);
         ValueOperations<String, String> ops = mock(ValueOperations.class);
         when(redis.opsForValue()).thenReturn(ops);
-        when(ops.setIfAbsent(eq("insight:build:u1"), eq("PROCESSING"), any(Duration.class))).thenReturn(true);
+        when(ops.setIfAbsent(eq("insight:build:u1"), eq("PROCESSING"), eq(Duration.ofSeconds(300)))).thenReturn(true);
 
-        assertThat(new InsightBuildStatusService(redis).tryAcquire("u1")).isTrue();
+        InsightBuildStatusService service = new InsightBuildStatusService(redis);
+        assertThat(service.tryAcquire("u1")).isTrue();
+
+        verify(ops).setIfAbsent(eq("insight:build:u1"), eq("PROCESSING"), eq(Duration.ofSeconds(300)));
     }
 
     @Test
@@ -41,5 +44,27 @@ class InsightBuildStatusServiceTest {
         when(ops.get("insight:build:u1")).thenReturn(null);
 
         assertThat(new InsightBuildStatusService(redis).status("u1")).isEqualTo("IDLE");
+    }
+
+    @Test
+    void markDoneSetsDoneWith60sTtl() {
+        StringRedisTemplate redis = mock(StringRedisTemplate.class);
+        ValueOperations<String, String> ops = mock(ValueOperations.class);
+        when(redis.opsForValue()).thenReturn(ops);
+
+        new InsightBuildStatusService(redis).markDone("u1");
+
+        verify(ops).set(eq("insight:build:u1"), eq("DONE"), eq(Duration.ofSeconds(60)));
+    }
+
+    @Test
+    void markFailedSetsFailedWith60sTtl() {
+        StringRedisTemplate redis = mock(StringRedisTemplate.class);
+        ValueOperations<String, String> ops = mock(ValueOperations.class);
+        when(redis.opsForValue()).thenReturn(ops);
+
+        new InsightBuildStatusService(redis).markFailed("u1");
+
+        verify(ops).set(eq("insight:build:u1"), eq("FAILED"), eq(Duration.ofSeconds(60)));
     }
 }
