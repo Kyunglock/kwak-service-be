@@ -49,6 +49,9 @@ dependencies {
   implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
 
   implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+  // Kafka (인사이트 비동기 빌드)
+  implementation 'org.springframework.kafka:spring-kafka'
 }
 
 tasks.named('test') {
