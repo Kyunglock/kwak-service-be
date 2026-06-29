@@ -54,7 +54,7 @@ public class RagController {
     )
     @PostMapping("/build-context")
     public ResponseEntity<?> buildContext(@AuthenticationPrincipal String userId) {
-        List<InsightResultResponse> results = insightService.buildAndSaveContext(userId);
-        return ResponseUtil.success(results, "인사이트 결과 생성 성공 (" + results.size() + "건)");
+        String status = insightService.requestBuild(userId);
+        return ResponseUtil.success(java.util.Map.of("status", status), "인사이트 생성 요청 접수");
     }
 }

@@ -9,9 +9,11 @@ import com.investment.portal.domain.repository.portfolio.PortfolioItemMapper;
 import com.investment.portal.domain.repository.portfolio.PortfolioMapper;
 import com.investment.portal.domain.repository.stock.StockPriceHistoryMapper;
 import com.investment.portal.domain.repository.survey.SurveyMapper;
-import com.investment.portal.infrastructure.external.openai.InsightOpenAiClient;
+import com.investment.portal.infrastructure.external.kwakai.KwakAiClient;
 import com.investment.portal.infrastructure.external.yahoo.StockInfo;
 import com.investment.portal.infrastructure.external.yahoo.YahooFinanceClient;
+import com.investment.portal.infrastructure.messaging.InsightBuildProducer;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,20 +29,17 @@ import java.util.stream.IntStream;
 @RequiredArgsConstructor
 public class InsightServiceImpl implements InsightService {
 
-    private final InsightResultMapper     insightResultMapper;
-    private final PortfolioMapper         portfolioMapper;
-    private final PortfolioItemMapper     portfolioItemMapper;
-    private final SurveyMapper            surveyMapper;
-    private final StockPriceHistoryMapper stockPriceHistoryMapper;
-    private final YahooFinanceClient      yahooFinanceClient;
-    private final InsightOpenAiClient     openAiClient;
-
-    private static final String SYSTEM_PROMPT =
-            "당신은 한국어로 응답하는 주식 포트폴리오 분석 전문가입니다. " +
-            "주어진 포트폴리오 데이터를 바탕으로 구체적이고 실용적인 분석을 제공하세요. " +
-            "반드시 다음 JSON 형식으로만 응답하세요: {\"lines\": [\"분석 내용1\", \"분석 내용2\", ...]} " +
-            "각 항목은 완결된 한국어 문장으로 작성하며, 4~6개 항목을 구성하세요. " +
-            "구체적인 수치와 근거를 포함하고 실행 가능한 인사이트를 제공하세요.";
+    private final InsightResultMapper       insightResultMapper;
+    private final PortfolioMapper           portfolioMapper;
+    private final PortfolioItemMapper       portfolioItemMapper;
+    private final SurveyMapper              surveyMapper;
+    private final StockPriceHistoryMapper   stockPriceHistoryMapper;
+    private final YahooFinanceClient        yahooFinanceClient;
+    private final KwakAiClient              kwakAiClient;
+    private final CombinedInsightPromptBuilder promptBuilder;
+    private final CombinedInsightParser     combinedParser;
+    private final InsightBuildStatusService statusService;
+    private final InsightBuildProducer      buildProducer;
 
     private static final Map<String, String> TYPE_TITLE = Map.of(
             "KEY_FINDINGS",              "주요 발견사항",
@@ -48,7 +47,8 @@ public class InsightServiceImpl implements InsightService {
             "RISK_ASSESSMENT",           "리스크 평가",
             "PORTFOLIO_ALIGNMENT",       "포트폴리오 정합성",
             "INVESTMENT_RECOMMENDATION", "투자 추천",
-            "STOCK_MBTI",                "투자 MBTI"
+            "STOCK_MBTI",                "투자 MBTI",
+            "PROFILE_FIT",               "성향 적합도"
     );
 
     // ── 조회 ──────────────────────────────────────────────────────────────────
@@ -68,38 +68,138 @@ public class InsightServiceImpl implements InsightService {
     // ── 빌드 ──────────────────────────────────────────────────────────────────
 
     @Override
-    public List<InsightResultResponse> buildAndSaveContext(String userId) {
+    public String requestBuild(String userId) {
+        if (!statusService.tryAcquire(userId)) {
+            log.info("[Insight] 이미 빌드 진행 중 - userId: {}", userId);
+            return "ALREADY_PROCESSING";
+        }
+        buildProducer.publish(userId);
+        return "PROCESSING";
+    }
 
+    @Override
+    public void executeBuild(String userId) {
         List<PortfolioItem> allItems = portfolioMapper.findByUserId(userId).stream()
                 .flatMap(p -> portfolioItemMapper.findByPortfolioId(p.getPortfolioId()).stream())
                 .toList();
-
-        List<String> tickers = allItems.stream()
-                .map(PortfolioItem::getStockCd).distinct().toList();
-
-        log.info("[Insight] 종목 조회 시작 - userId: {}, tickers: {}", userId, tickers);
-
+        List<String> tickers = allItems.stream().map(PortfolioItem::getStockCd).distinct().toList();
         Map<String, StockInfo> stockMap = tickers.isEmpty()
-                ? Collections.emptyMap()
-                : yahooFinanceClient.fetchBatch(tickers);
+                ? Collections.emptyMap() : yahooFinanceClient.fetchBatch(tickers);
 
-        log.info("[Insight] Yahoo Finance 조회 완료 - 성공: {}건 / 요청: {}건", stockMap.size(), tickers.size());
+        // ── 통합 LLM 1회 호출 ──
+        CombinedInsight combined = callCombinedLlm(userId, allItems, stockMap);
+
+        // ── LLM 4종 (없으면 규칙 폴백) ──
+        String riskContent = (combined != null && !combined.riskLines().isEmpty())
+                ? String.join("\n", combined.riskLines())
+                : buildRiskAssessment(userId, allItems, stockMap).getContent();
+        String alignContent = (combined != null && !combined.alignmentLines().isEmpty())
+                ? String.join("\n", combined.alignmentLines())
+                : buildPortfolioAlignment(userId, allItems, stockMap).getContent();
+        String recoContent = (combined != null && !combined.recommendationLines().isEmpty())
+                ? String.join("\n", combined.recommendationLines())
+                : buildInvestmentRecommendation(userId, allItems, stockMap).getContent();
+        String profileFitContent = (combined != null && combined.profileFitJson() != null)
+                ? combined.profileFitJson()
+                : buildProfileFitFallback(userId, allItems, stockMap);
 
         List<InsightResult> items = List.of(
                 buildKeyFindings(userId),
                 buildInvestmentStyle(userId, allItems, stockMap),
-                buildRiskAssessment(userId, allItems, stockMap),
-                buildPortfolioAlignment(userId, allItems, stockMap),
-                buildInvestmentRecommendation(userId, allItems, stockMap),
-                buildStockMbti(userId)
+                buildItem(userId, "RISK_ASSESSMENT", riskContent),
+                buildItem(userId, "PORTFOLIO_ALIGNMENT", alignContent),
+                buildItem(userId, "INVESTMENT_RECOMMENDATION", recoContent),
+                buildStockMbti(userId),
+                buildItem(userId, "PROFILE_FIT", profileFitContent)
         );
-
         items.forEach(item -> {
             insightResultMapper.upsert(item);
             log.info("[Insight] upsert 완료 - userId: {}, type: {}", userId, item.getResultTypeCd());
         });
+    }
 
-        return getAllResults(userId);
+    /** 통합 프롬프트 구성 후 LLM 1회 호출 → 파싱. 실패 시 null. */
+    private CombinedInsight callCombinedLlm(String userId,
+                                            List<PortfolioItem> items,
+                                            Map<String, StockInfo> stockMap) {
+        if (items.isEmpty()) return null;
+        List<StockInfo> infoList = new ArrayList<>(stockMap.values());
+        if (infoList.isEmpty()) return null;
+
+        long sectorCnt = infoList.stream().map(StockInfo::sector).distinct().count();
+        double avgPE  = infoList.stream().filter(s -> s.peRatio() > 0).mapToDouble(StockInfo::peRatio).average().orElse(0);
+        double avgDiv = infoList.stream().mapToDouble(StockInfo::dividendYield).average().orElse(0);
+        double avgPos = infoList.stream().filter(s -> s.fiftyTwoWeekHigh() > s.fiftyTwoWeekLow())
+                .mapToDouble(StockInfo::pricePosition).average().orElse(50);
+        String metricsBlock = String.format("평균 PER: %.1f | 배당수익률: %.2f%% | 52주 평균 위치: %.0f%%",
+                avgPE, avgDiv * 100, avgPos);
+        String stockLines = infoList.stream().sorted(Comparator.comparing(StockInfo::ticker))
+                .map(StockInfo::toContextLine).collect(Collectors.joining("\n"));
+
+        InsightPromptContext ctx = new InsightPromptContext(
+                items.size(), (int) sectorCnt, surveyBlock(userId), metricsBlock, stockLines);
+        String raw = kwakAiClient.generateContent(CombinedInsightPromptBuilder.SYSTEM_PROMPT, promptBuilder.build(ctx));
+        if (raw == null) {
+            log.warn("[Insight] 통합 LLM 응답 없음 - 규칙 폴백 - userId: {}", userId);
+            return null;
+        }
+        CombinedInsight parsed = combinedParser.parse(raw);
+        if (parsed == null) log.warn("[Insight] 통합 LLM 파싱 실패 - 규칙 폴백 - userId: {}", userId);
+        return parsed;
+    }
+
+    /** 설문 점수 → 성향 코드 한 줄 블록. 미완료 시 "설문 미완료". */
+    private String surveyBlock(String userId) {
+        List<Map<String, Object>> scores = surveyMapper.findRiskProfileScores(userId);
+        if (scores.isEmpty()) return "설문 미완료";
+        Map<String, Double> m = scores.stream().collect(Collectors.toMap(
+                s -> String.valueOf(s.get("description")),
+                s -> ((Number) s.get("score")).doubleValue(), (a, b) -> a));
+        double profit = m.getOrDefault("수익추구", 50.0);
+        double risk = m.getOrDefault("리스크허용", 50.0);
+        double longTerm = m.getOrDefault("장기투자", 50.0);
+        String code = (profit >= 50 ? "G" : "V") + (risk >= 50 ? "R" : "S") + (longTerm >= 50 ? "L" : "T");
+        return String.format("투자 성향 코드: %s\n수익추구 %.0f / 리스크허용 %.0f / 장기투자 %.0f", code, profit, risk, longTerm);
+    }
+
+    /** PROFILE_FIT 규칙 기반 폴백 — JSON 문자열. */
+    private String buildProfileFitFallback(String userId,
+                                           List<PortfolioItem> items,
+                                           Map<String, StockInfo> stockMap) {
+        List<StockInfo> infoList = new ArrayList<>(stockMap.values());
+        if (infoList.isEmpty()) {
+            return "{\"fit\":[],\"rebalance\":[\"종목을 추가하면 성향 적합도 분석을 제공합니다.\"]}";
+        }
+        List<Map<String, Object>> scores = surveyMapper.findRiskProfileScores(userId);
+        double riskTol = scores.stream()
+                .filter(s -> "리스크허용".equals(String.valueOf(s.get("description"))))
+                .map(s -> ((Number) s.get("score")).doubleValue()).findFirst().orElse(50.0);
+
+        List<Map<String, Object>> fit = new ArrayList<>();
+        for (StockInfo s : infoList) {
+            String level;
+            String reason;
+            if (s.peRatio() > 25 && riskTol < 50) {
+                level = "낮음"; reason = "고PER 성장주로 안정 성향 대비 변동성이 큽니다.";
+            } else if (s.peRatio() > 25) {
+                level = "보통"; reason = "성장주 특성으로 수익 성향과 부합하나 변동성에 유의하세요.";
+            } else {
+                level = "높음"; reason = "밸류에이션 부담이 낮아 보유 성향과 무난합니다.";
+            }
+            fit.add(Map.of("ticker", s.companyName(), "level", level, "reason", reason));
+        }
+        List<String> rebalance = new ArrayList<>();
+        long growth = infoList.stream().filter(x -> x.peRatio() > 25).count();
+        if (riskTol < 50 && growth * 2 > infoList.size()) rebalance.add("고PER 성장주 비중을 줄이고 배당주로 안정성을 보강하세요.");
+        if (items.size() < 5) rebalance.add("보유 종목이 적습니다. 분산을 위해 5종목 이상을 권장합니다.");
+        if (rebalance.isEmpty()) rebalance.add("현재 구성은 성향과 대체로 부합합니다. 정기 리밸런싱을 유지하세요.");
+
+        try {
+            ObjectMapper om = new ObjectMapper();
+            return om.writeValueAsString(Map.of("fit", fit, "rebalance", rebalance));
+        } catch (Exception e) {
+            return "{\"fit\":[],\"rebalance\":[\"분석을 일시적으로 제공할 수 없습니다.\"]}";
+        }
     }
 
     // ── 타입별 컨텍스트 빌더 ──────────────────────────────────────────────────
@@ -361,48 +461,13 @@ public class InsightServiceImpl implements InsightService {
 
         List<StockInfo> infoList = new ArrayList<>(stockMap.values());
 
-        // ── 수치 계산 (AI 프롬프트 컨텍스트 + 폴백용 공용) ──
+        // ── 수치 계산 (규칙 기반) ──
         double avgPos = infoList.stream()
                 .filter(s -> s.fiftyTwoWeekHigh() > s.fiftyTwoWeekLow())
                 .mapToDouble(StockInfo::pricePosition).average().orElse(50.0);
-        double avgPE  = infoList.stream().filter(s -> s.peRatio() > 0)
-                .mapToDouble(StockInfo::peRatio).average().orElse(0);
-        double avgDiv = infoList.stream().mapToDouble(StockInfo::dividendYield).average().orElse(0);
         long   negCnt = infoList.stream().filter(s -> s.changePercent() < 0).count();
-        long   highCnt = infoList.stream().filter(s -> s.pricePosition() > 80).count();
-        long   lowCnt  = infoList.stream().filter(s -> s.pricePosition() < 20).count();
 
-        Map<String, Long> sectorMap = infoList.stream()
-                .collect(Collectors.groupingBy(s -> s.sector().isBlank() ? "Unknown" : s.sector(), Collectors.counting()));
-        String topSector = sectorMap.entrySet().stream()
-                .max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse("데이터 없음");
-        int topSectorPct = infoList.isEmpty() ? 0
-                : (int) (sectorMap.getOrDefault(topSector, 0L) * 100L / infoList.size());
-
-        // ── AI 호출 ──
-        String userPrompt = String.format(
-                "[포트폴리오 리스크 평가 요청]\n" +
-                "보유 종목: %d개 | 섹터: %d개\n" +
-                "집중 섹터: %s (%d%%)\n" +
-                "52주 가격 위치: 평균 %.0f%% (고점 근처 %d개 / 저점 근처 %d개)\n" +
-                "하락 종목 비율: %.0f%%\n" +
-                "평균 PER: %.1f | 배당수익률: %.2f%%\n" +
-                "종목 목록:\n%s\n\n" +
-                "이 포트폴리오의 전반적인 리스크 수준, 주요 위험 요인, 단기·중기 주의사항을 분석해주세요.",
-                items.size(), sectorMap.size(), topSector, topSectorPct,
-                avgPos, highCnt, lowCnt,
-                infoList.isEmpty() ? 0 : negCnt * 100.0 / infoList.size(),
-                avgPE, avgDiv * 100,
-                infoList.stream().map(StockInfo::toContextLine).collect(Collectors.joining("\n"))
-        );
-
-        List<String> aiLines = openAiClient.chatLines(SYSTEM_PROMPT, userPrompt);
-        if (aiLines != null) {
-            log.info("[Insight] RISK_ASSESSMENT AI 생성 완료 - userId: {}", userId);
-            return buildItem(userId, "RISK_ASSESSMENT", String.join("\n", aiLines));
-        }
-
-        // ── 폴백: 규칙 기반 ──
+        // ── 규칙 기반 ──
         String priceLabel   = avgPos > 70 ? "52주 고점 근처 — 고평가 주의"
                 : avgPos > 40 ? "52주 중간대 — 적정 수준" : "52주 저점 근처 — 저평가 가능성";
         String divLabel     = items.size() >= 10 ? "충분한 분산 투자"
@@ -423,56 +488,10 @@ public class InsightServiceImpl implements InsightService {
         long   sectorCnt    = infoList.stream().map(StockInfo::sector).distinct().count();
         long   dividendCnt  = infoList.stream().filter(s -> s.dividendYield() > 0.01).count();
         long   growthCnt    = infoList.stream().filter(s -> s.peRatio() > 25).count();
-        double avgPE        = infoList.stream().filter(s -> s.peRatio() > 0)
-                .mapToDouble(StockInfo::peRatio).average().orElse(0);
-        int    growthPct    = infoList.isEmpty() ? 0 : (int) (growthCnt * 100L / infoList.size());
-        int    dividendPct  = infoList.isEmpty() ? 0 : (int) (dividendCnt * 100L / infoList.size());
 
-        // 설문 기반 성향 정보
-        List<Map<String, Object>> surveyScores = surveyMapper.findRiskProfileScores(userId);
-        String mbtiBlock = "";
-        if (!surveyScores.isEmpty()) {
-            Map<String, Double> scoreMap = surveyScores.stream().collect(Collectors.toMap(
-                    m -> String.valueOf(m.get("description")),
-                    m -> ((Number) m.get("score")).doubleValue(), (a, b) -> a));
-            double profit   = scoreMap.getOrDefault("수익추구", 50.0);
-            double risk     = scoreMap.getOrDefault("리스크허용", 50.0);
-            double longTerm = scoreMap.getOrDefault("장기투자", 50.0);
-            String code = (profit >= 50 ? "G" : "V") + (risk >= 50 ? "R" : "S") + (longTerm >= 50 ? "L" : "T");
-            mbtiBlock = String.format(
-                    "투자 성향 코드: %s\n수익추구 %.0f / 리스크허용 %.0f / 장기투자 %.0f (각 100점 만점)\n",
-                    code, profit, risk, longTerm);
-        }
-
-        String topSectors = infoList.stream()
-                .collect(Collectors.groupingBy(s -> s.sector().isBlank() ? "Unknown" : s.sector(), Collectors.counting()))
-                .entrySet().stream().sorted(Map.Entry.<String, Long>comparingByValue().reversed())
-                .limit(3).map(e -> e.getKey() + "(" + e.getValue() + "종목)")
-                .collect(Collectors.joining(", "));
-
-        // ── AI 호출 ──
+        // ── 규칙 기반 ──
         String stockLines = infoList.stream().sorted(Comparator.comparing(StockInfo::ticker))
                 .map(StockInfo::toContextLine).collect(Collectors.joining("\n"));
-        String userPrompt = String.format(
-                "[포트폴리오 정합성 분석 요청]\n%s" +
-                "실제 포트폴리오:\n" +
-                "- 종목 %d개 / 섹터 %d개\n" +
-                "- 성장주(PER 25↑): %d%% / 배당주(수익률 1%%↑): %d%%\n" +
-                "- 평균 PER: %.1f\n" +
-                "- 주요 섹터: %s\n" +
-                "종목 목록:\n%s\n\n" +
-                "투자 성향과 실제 포트폴리오 구성의 일치 여부, 괴리가 있다면 어떤 조정이 필요한지 분석해주세요.",
-                mbtiBlock, items.size(), sectorCnt,
-                growthPct, dividendPct, avgPE, topSectors, stockLines
-        );
-
-        List<String> aiLines = openAiClient.chatLines(SYSTEM_PROMPT, userPrompt);
-        if (aiLines != null) {
-            log.info("[Insight] PORTFOLIO_ALIGNMENT AI 생성 완료 - userId: {}", userId);
-            return buildItem(userId, "PORTFOLIO_ALIGNMENT", String.join("\n", aiLines));
-        }
-
-        // ── 폴백 ──
         double diversityPct = (double) sectorCnt / items.size() * 100;
         String alignScore = diversityPct > 60 ? "높음 (우수)" : diversityPct > 30 ? "보통 (개선 가능)" : "낮음 (집중 해소 필요)";
         return buildItem(userId, "PORTFOLIO_ALIGNMENT", String.format(
@@ -495,49 +514,8 @@ public class InsightServiceImpl implements InsightService {
 
         Map<String, Long> sectorMap = infoList.stream()
                 .collect(Collectors.groupingBy(s -> s.sector().isBlank() ? "Unknown" : s.sector(), Collectors.counting()));
-        String topSector    = sectorMap.entrySet().stream()
-                .max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse("데이터 없음");
-        int    topSectorPct = infoList.isEmpty() ? 0
-                : (int) (sectorMap.getOrDefault(topSector, 0L) * 100L / infoList.size());
 
-        // 설문 기반 투자 성향
-        List<Map<String, Object>> surveyScores = surveyMapper.findRiskProfileScores(userId);
-        String mbtiInfo = "설문 미완료";
-        if (!surveyScores.isEmpty()) {
-            Map<String, Double> scoreMap = surveyScores.stream().collect(Collectors.toMap(
-                    m -> String.valueOf(m.get("description")),
-                    m -> ((Number) m.get("score")).doubleValue(), (a, b) -> a));
-            double profit   = scoreMap.getOrDefault("수익추구", 50.0);
-            double risk     = scoreMap.getOrDefault("리스크허용", 50.0);
-            double longTerm = scoreMap.getOrDefault("장기투자", 50.0);
-            String code = (profit >= 50 ? "G" : "V") + (risk >= 50 ? "R" : "S") + (longTerm >= 50 ? "L" : "T");
-            String[] meta = getMbtiMeta(code);
-            mbtiInfo = code + " " + meta[0] + " (수익추구 " + (int)profit + " / 리스크허용 " + (int)risk + " / 장기투자 " + (int)longTerm + ")";
-        }
-
-        // ── AI 호출 ──
-        String userPrompt = String.format(
-                "[투자 전략 추천 요청]\n" +
-                "투자자 성향: %s\n\n" +
-                "현재 포트폴리오:\n" +
-                "- 종목 %d개 / 섹터 %d개\n" +
-                "- 집중 섹터: %s (%d%%)\n" +
-                "- 평균 PER: %.1f | 배당수익률: %.2f%%\n" +
-                "- 52주 평균 가격 위치: %.0f%% (100%%=52주 고점)\n" +
-                "종목 목록:\n%s\n\n" +
-                "이 투자자에게 맞는 구체적인 포트폴리오 개선 전략, 추가 편입 검토 섹터/유형, 리밸런싱 방향을 추천해주세요.",
-                mbtiInfo, items.size(), sectorMap.size(),
-                topSector, topSectorPct, avgPE, avgDiv * 100, avgPos,
-                infoList.stream().map(StockInfo::toContextLine).collect(Collectors.joining("\n"))
-        );
-
-        List<String> aiLines = openAiClient.chatLines(SYSTEM_PROMPT, userPrompt);
-        if (aiLines != null) {
-            log.info("[Insight] INVESTMENT_RECOMMENDATION AI 생성 완료 - userId: {}", userId);
-            return buildItem(userId, "INVESTMENT_RECOMMENDATION", String.join("\n", aiLines));
-        }
-
-        // ── 폴백: 규칙 기반 ──
+        // ── 규칙 기반 ──
         List<String> recs = new ArrayList<>();
         if (items.size() < 5) recs.add("보유 종목이 " + items.size() + "개로 적습니다. 분산을 위해 5종목 이상을 권장합니다.");
         sectorMap.entrySet().stream()

@@ -10,5 +10,9 @@ public interface InsightService {
 
     InsightResultResponse getResultByType(String userId, String resultTypeCd);
 
-    List<InsightResultResponse> buildAndSaveContext(String userId);
+    /** 비동기 빌드 트리거. 락 획득 시 "PROCESSING", 이미 진행 중이면 "ALREADY_PROCESSING". */
+    String requestBuild(String userId);
+
+    /** 동기 빌드 실행 (Kafka 컨슈머가 호출). */
+    void executeBuild(String userId);
 }
