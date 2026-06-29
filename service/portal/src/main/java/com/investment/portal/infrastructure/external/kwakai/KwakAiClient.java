@@ -78,6 +78,32 @@ public class KwakAiClient {
         return call("/chat/completions", body);
     }
 
+    /** 통합 인사이트 호출: 시스템/유저 프롬프트로 1회 호출 후 assistant content 원문 반환. 실패 시 null. */
+    public String generateContent(String systemPrompt, String userPrompt) {
+        try {
+            Map<String, Object> body = Map.of(
+                    "model", defaultModel,
+                    "messages", List.of(
+                            new KwakAiMessage("system", systemPrompt),
+                            new KwakAiMessage("user", userPrompt)
+                    ),
+                    "stream", false
+            );
+            return parseAssistantContent(call("/chat/completions", body));
+        } catch (Exception e) {
+            log.warn("[KwakAI] generateContent 실패: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    public static String parseAssistantContent(JsonNode root) {
+        if (root == null) return null;
+        JsonNode choices = root.path("choices");
+        if (!choices.isArray() || choices.isEmpty()) return null;
+        String content = choices.get(0).path("message").path("content").asText(null);
+        return (content == null || content.isBlank()) ? null : content;
+    }
+
     public JsonNode listModels() {
         try {
             String raw = webClient.get()
