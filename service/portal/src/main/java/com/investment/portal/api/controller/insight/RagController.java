@@ -20,6 +20,7 @@ import java.util.List;
 public class RagController {
 
     private final InsightService insightService;
+    private final com.investment.portal.application.service.insight.InsightBuildStatusService statusService;
 
     @Operation(
         summary = "인사이트 전체 결과 조회",
@@ -49,12 +50,21 @@ public class RagController {
     }
 
     @Operation(
-        summary = "인사이트 결과 생성",
-        description = "설문 결과와 포트폴리오 데이터를 기반으로 RAG 컨텍스트를 재구성하여 타입별 인사이트를 생성/갱신합니다."
+        summary = "인사이트 결과 생성 트리거(비동기)",
+        description = "Redis 락 획득 후 Kafka 빌드 이벤트를 발행하고 즉시 반환합니다. 결과는 build-status 폴링으로 확인합니다."
     )
     @PostMapping("/build-context")
     public ResponseEntity<?> buildContext(@AuthenticationPrincipal String userId) {
         String status = insightService.requestBuild(userId);
         return ResponseUtil.success(java.util.Map.of("status", status), "인사이트 생성 요청 접수");
+    }
+
+    @Operation(
+        summary = "인사이트 빌드 상태 조회",
+        description = "IDLE/PROCESSING/DONE/FAILED 중 현재 상태를 반환합니다."
+    )
+    @GetMapping("/build-status")
+    public ResponseEntity<?> buildStatus(@AuthenticationPrincipal String userId) {
+        return ResponseUtil.success(java.util.Map.of("status", statusService.status(userId)), "빌드 상태 조회 성공");
     }
 }
