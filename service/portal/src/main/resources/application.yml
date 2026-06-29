@@ -56,10 +56,6 @@ server:
         secure: false # HTTP 허용
         same-site: lax # None이면 Secure 필수
 
-openai:
-  api-key: ${OPENAI_API_KEY:}
-  model: gpt-4o-mini
-
 stock:
   api:
     finnhub:
