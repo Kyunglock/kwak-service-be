@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "포트폴리오 배당", description = "포트폴리오 보유 종목 배당 이력 조회 API")
 @RestController
-@RequestMapping("/api/v1/dividends")
+@RequestMapping("/api/v1/market-dividends")
 @RequiredArgsConstructor
 public class PortfolioDividendController {
 
