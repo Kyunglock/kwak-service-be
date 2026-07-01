@@ -31,6 +31,13 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
+  ai:
+    openai:
+      # market-analyzer(라이브러리화됨)의 spring-ai-starter-model-openai 자동설정이
+      # 부팅 시 OpenAI ChatModel 빈을 생성하려면 api-key가 필요함. market은 ChatClient를
+      # 직접 사용하지 않으므로 더미값으로 부팅 실패만 방지. 실제 키는 OPENAI_API_KEY로 주입.
+      api-key: ${OPENAI_API_KEY:dummy}
+
 jwt:
   secret: ${JWT_SECRET}
   expiration: 3600000 # 액세스 토큰 유효시간: 1시간
