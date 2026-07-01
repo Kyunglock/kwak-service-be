@@ -1,6 +1,7 @@
 package com.investment.portal.api.controller.history;
 
 import com.investment.portal.application.dto.history.transaction.*;
+import com.investment.portal.application.event.ActivityEvent;
 import com.investment.portal.application.service.history.TransactionHistoryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -8,7 +9,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import kwak.common.util.ResponseUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -20,6 +23,7 @@ import java.util.List;
 public class TransactionHistoryController {
 
     private final TransactionHistoryService transactionHistoryService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Operation(summary = "거래 단건 조회", description = "거래ID로 조회합니다")
     @GetMapping("/{transId}")
@@ -59,8 +63,16 @@ public class TransactionHistoryController {
 
     @Operation(summary = "거래 등록", description = "거래 이력을 등록합니다 (amount = qty * price 자동 계산)")
     @PostMapping
-    public ResponseEntity<?> addTransaction(@Valid @RequestBody TransactionHistoryAddRequest request) {
+    public ResponseEntity<?> addTransaction(
+            @AuthenticationPrincipal String userId,
+            @Valid @RequestBody TransactionHistoryAddRequest request) {
         TransactionHistoryResponse response = transactionHistoryService.addTransaction(request);
+
+        String action = "SELL".equals(request.transType()) ? "TRADE_SELL" : "TRADE_BUY";
+        eventPublisher.publishEvent(ActivityEvent.of(
+                userId, action, "STOCK", request.stockCd(),
+                request.stockCd() + " " + request.qty() + "주"));
+
         return ResponseUtil.created(response, "거래 등록 성공");
     }
 

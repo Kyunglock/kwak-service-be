@@ -5,11 +5,13 @@ import com.investment.survey.application.dto.response.SurveySubmitRequest;
 import com.investment.survey.application.dto.response.SurveySubmitResponse;
 import com.investment.survey.application.dto.response.SurveyWithMyResponse;
 import com.investment.survey.application.dto.result.SurveyResultResponse;
+import com.investment.survey.application.event.ActivityEvent;
 import com.investment.survey.domain.entity.*;
 import kwak.common.application.dto.PageResponse;
 import com.investment.survey.domain.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +31,7 @@ public class SurveyResponseServiceImpl implements SurveyResponseService {
     private final UserSurveyResponseMapper responseMapper;
     private final SurveyAnswerMapper answerMapper;
     private final SurveyResultMapper resultMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -107,6 +110,9 @@ public class SurveyResponseServiceImpl implements SurveyResponseService {
 
         log.info("[SurveyResponse] 설문 제출 완료 - userId: {}, surveyId: {}, score: {}, profile: {}",
                 userId, request.surveyId(), totalScore, riskProfile);
+
+        eventPublisher.publishEvent(ActivityEvent.of(
+                userId, "SURVEY_SUBMIT", "SURVEY", String.valueOf(request.surveyId()), "설문 제출"));
 
         return new SurveySubmitResponse(
                 response.getResponseId(),

@@ -1,5 +1,6 @@
 package com.investment.portal.api.controller.login;
 
+import com.investment.portal.application.event.ActivityEvent;
 import kwak.common.config.security.JwtTokenProvider;
 import kwak.common.infrastructure.token.RedisTokenStore;
 import kwak.common.infrastructure.token.UserSession;
@@ -12,7 +13,9 @@ import kwak.common.util.ResponseUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,13 +31,16 @@ public class AuthController {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final RedisTokenStore redisTokenStore;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${app.cookie.secure:true}")
     private boolean cookieSecure;
 
     @PostMapping("/logout")
     @Operation(summary = "로그아웃", description = "JWT 토큰 무효화 및 쿠키 삭제")
-    public ResponseEntity<?> logout(HttpServletRequest request, HttpServletResponse response) {
+    public ResponseEntity<?> logout(
+            @AuthenticationPrincipal String userId,
+            HttpServletRequest request, HttpServletResponse response) {
         String accessToken = resolveToken(request, "accessToken");
         if (accessToken != null && jwtTokenProvider.validateToken(accessToken)) {
             jwtTokenProvider.invalidateToken(accessToken);
@@ -50,6 +56,10 @@ public class AuthController {
         response.addHeader("Set-Cookie", emptyCookie("accessToken").toString());
         // refreshToken 쿠키 삭제
         response.addHeader("Set-Cookie", emptyCookie("refreshToken").toString());
+
+        if (userId != null) {
+            eventPublisher.publishEvent(ActivityEvent.of(userId, "LOGOUT", "AUTH", null, "로그아웃"));
+        }
 
         return ResponseUtil.success(null, "로그아웃 성공");
     }

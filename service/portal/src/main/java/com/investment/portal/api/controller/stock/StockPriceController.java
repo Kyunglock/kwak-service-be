@@ -4,28 +4,24 @@ import com.investment.portal.application.dto.stock.StockPriceSnapshot;
 import com.investment.portal.application.dto.stock.StockWithLatestPriceResponse;
 import com.investment.portal.application.service.stock.StockPriceQueryService;
 import com.investment.portal.infrastructure.cache.StockPriceCacheStore;
-import com.investment.portal.infrastructure.sse.StockPriceSseEmitterService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import kwak.common.application.dto.RokResponse;
 import kwak.common.util.ResponseUtil;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.Collection;
 
-@Tag(name = "실시간 주가", description = "실시간 주가 조회 및 SSE 구독 API")
+@Tag(name = "주가 조회", description = "종목 현재가/종가 조회 API")
 @RestController
 @RequestMapping("/api/v1/stocks/price")
 @RequiredArgsConstructor
 public class StockPriceController {
 
     private final StockPriceCacheStore cacheStore;
-    private final StockPriceSseEmitterService sseService;
     private final StockPriceQueryService queryService;
 
     /**
@@ -75,27 +71,5 @@ public class StockPriceController {
     @GetMapping("/with-company")
     public ResponseEntity<?> findAllWithLatestPrice() {
         return ResponseUtil.success(queryService.getAllWithLatestPrice());
-    }
-
-    /**
-     * SSE: 특정 종목 실시간 가격 구독
-     * 클라이언트 예시: new EventSource('/api/v1/stocks/price/stream/AAPL')
-     */
-    @Operation(summary = "종목별 실시간 가격 SSE 구독", description = "특정 종목의 가격 변동을 SSE로 실시간 수신합니다")
-    @GetMapping(value = "/stream/{stockCd}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter streamByStock(
-            @Parameter(description = "종목코드", example = "AAPL")
-            @PathVariable String stockCd) {
-        return sseService.subscribe(stockCd);
-    }
-
-    /**
-     * SSE: 전체 종목 실시간 가격 구독
-     * 클라이언트 예시: new EventSource('/api/v1/stocks/price/stream')
-     */
-    @Operation(summary = "전체 종목 실시간 가격 SSE 구독", description = "모든 종목의 가격 변동을 SSE로 실시간 수신합니다")
-    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter streamAll() {
-        return sseService.subscribeAll();
     }
 }

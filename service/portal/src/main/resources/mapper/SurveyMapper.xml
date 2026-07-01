@@ -7,7 +7,7 @@
     <!-- RISK_PROFILE 설문 항목별 점수 (stock-advisor와 동일 DB 공유) -->
     <select id="findRiskProfileScores" resultType="map">
         SELECT C.DESCRIPTION     AS description
-             , SUM(D.ANSWER_SCORE) / 4 AS score
+             , AVG(D.ANSWER_SCORE) AS score
           FROM (
                 SELECT RESPONSE_ID
                      , SURVEY_ID

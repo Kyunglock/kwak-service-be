@@ -67,4 +67,13 @@ public class RagController {
     public ResponseEntity<?> buildStatus(@AuthenticationPrincipal String userId) {
         return ResponseUtil.success(java.util.Map.of("status", statusService.status(userId)), "빌드 상태 조회 성공");
     }
+
+    @Operation(
+        summary = "투자 MBTI 즉시 생성",
+        description = "설문 점수 기반으로 STOCK_MBTI만 동기 생성해 즉시 반환합니다. (LLM/Kafka 미사용)"
+    )
+    @PostMapping("/mbti")
+    public ResponseEntity<?> generateStockMbti(@AuthenticationPrincipal String userId) {
+        return ResponseUtil.success(insightService.generateStockMbti(userId), "투자 MBTI 생성 완료");
+    }
 }

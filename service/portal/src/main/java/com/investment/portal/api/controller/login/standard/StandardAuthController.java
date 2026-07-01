@@ -1,6 +1,7 @@
 package com.investment.portal.api.controller.login.standard;
 
 import com.investment.portal.application.dto.login.standard.StandardLoginRequest;
+import com.investment.portal.application.event.ActivityEvent;
 import com.investment.portal.application.service.login.LoginResponse;
 import com.investment.portal.application.service.login.standard.StandardAuthService;
 
@@ -13,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -25,6 +27,7 @@ import org.springframework.web.bind.annotation.*;
 public class StandardAuthController {
 
     private final StandardAuthService standardAuthService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${app.cookie.secure:true}")
     private boolean cookieSecure;
@@ -60,6 +63,9 @@ public class StandardAuthController {
 
         response.addHeader("Set-Cookie", accessCookie.toString());
         response.addHeader("Set-Cookie", refreshCookie.toString());
+
+        eventPublisher.publishEvent(ActivityEvent.of(
+                loginResponse.userId(), "LOGIN", "AUTH", "STANDARD", "일반 로그인"));
 
         return ResponseUtil.success(loginResponse);
     }

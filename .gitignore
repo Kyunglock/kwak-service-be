@@ -53,3 +53,5 @@ service/dividend-collector/
 dump-invdb.sql
 .understand-anything/
 docs/
+# git-bash crash dumps
+*.stackdump

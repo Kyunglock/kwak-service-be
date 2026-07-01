@@ -15,4 +15,7 @@ public interface InsightService {
 
     /** 동기 빌드 실행 (Kafka 컨슈머가 호출). */
     void executeBuild(String userId);
+
+    /** 투자 MBTI(STOCK_MBTI)만 즉시 동기 생성 (설문 점수 기반, LLM 불필요). */
+    InsightResultResponse generateStockMbti(String userId);
 }

@@ -1,5 +1,6 @@
 package com.investment.portal.api.controller.login.kakao;
 
+import com.investment.portal.application.event.ActivityEvent;
 import com.investment.portal.application.service.login.LoginResponse;
 import com.investment.portal.application.service.login.kakao.KakaoAuthService;
 
@@ -12,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -24,6 +26,7 @@ import org.springframework.web.bind.annotation.*;
 public class KakaoAuthController {
 
     final private KakaoAuthService kakaoAuthService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${app.frontend.url}")
     private String frontendUrl;
@@ -69,6 +72,9 @@ public class KakaoAuthController {
 
         response.addHeader("Set-Cookie", accessCookie.toString());
         response.addHeader("Set-Cookie", refreshCookie.toString());
+
+        eventPublisher.publishEvent(ActivityEvent.of(
+                loginResponse.userId(), "LOGIN", "AUTH", "KAKAO", "카카오 로그인"));
 
         return ResponseUtil.redirect(frontendUrl + "/oauth/callback");
     }

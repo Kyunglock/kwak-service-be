@@ -115,6 +115,14 @@ public class InsightServiceImpl implements InsightService {
         });
     }
 
+    @Override
+    public InsightResultResponse generateStockMbti(String userId) {
+        InsightResult item = buildStockMbti(userId);   // 설문 점수 기반 규칙 계산 (LLM 미사용)
+        insightResultMapper.upsert(item);
+        log.info("[Insight] STOCK_MBTI 즉시 생성 - userId: {}", userId);
+        return getResultByType(userId, "STOCK_MBTI");
+    }
+
     /** 통합 프롬프트 구성 후 LLM 1회 호출 → 파싱. 실패 시 null. */
     private CombinedInsight callCombinedLlm(String userId,
                                             List<PortfolioItem> items,
