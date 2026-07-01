@@ -1,5 +1,6 @@
 package com.investment.portal.domain.repository.stock;
 
+import com.investment.portal.application.dto.stock.StockContextRow;
 import com.investment.portal.application.dto.stock.StockWithLatestPriceResponse;
 import com.investment.portal.domain.entity.history.stockPrice.StockPriceHistory;
 import org.apache.ibatis.annotations.Mapper;
@@ -24,6 +25,11 @@ public interface StockPriceHistoryMapper {
      * TBL_COMPANIES와 조인하여 전체 기업의 가장 최근 종가 조회
      */
     List<StockWithLatestPriceResponse> findAllWithLatestPrice();
+
+    /**
+     * 인사이트 종목 컨텍스트 조회: 회사 마스터 + 최신 종가 + 최근 1년 고저.
+     */
+    List<StockContextRow> findStockContextByStockCodes(@Param("stockCodes") List<String> stockCodes);
 
     /**
      * 주가 이력 등록

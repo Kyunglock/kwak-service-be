@@ -1,7 +1,10 @@
-package com.investment.portal.infrastructure.external.yahoo;
+package com.investment.portal.application.service.insight;
 
 /**
- * Yahoo Finance 비공식 API에서 조회한 종목 정보
+ * 인사이트 생성에 사용하는 종목 시장 정보.
+ * DB(tbl_companies + tbl_stock_price_history + tbl_dividend_history)에서 조립된다.
+ * peRatio/marketCap/industry는 현재 DB에 없어 0/""로 채워지며,
+ * peRatio는 소비 측에서 "미집계"(peRatio>0 필터)로 처리된다.
  */
 public record StockInfo(
         String ticker,
@@ -24,16 +27,17 @@ public record StockInfo(
         return (currentPrice - fiftyTwoWeekLow) / range * 100.0;
     }
 
-    /** RAG 컨텍스트 삽입용 한 줄 요약 */
+    /** RAG 컨텍스트 삽입용 한 줄 요약. DB에 없는 값(PER 0, 시총 0)은 생략한다. */
     public String toContextLine() {
-        return String.format(
-                "%s(%s) | 섹터: %s | 현재가: %.2f%s(%+.1f%%) | 시총: %s | PER: %.1f | 배당: %.2f%% | 52주: %.2f~%.2f",
+        StringBuilder sb = new StringBuilder(String.format(
+                "%s(%s) | 섹터: %s | 현재가: %.2f%s(%+.1f%%)",
                 companyName, ticker, sector,
-                currentPrice, currency, changePercent * 100,
-                formatMarketCap(),
-                peRatio, dividendYield * 100,
-                fiftyTwoWeekLow, fiftyTwoWeekHigh
-        );
+                currentPrice, currency, changePercent * 100));
+        if (marketCap > 0) sb.append(" | 시총: ").append(formatMarketCap());
+        if (peRatio > 0)   sb.append(String.format(" | PER: %.1f", peRatio));
+        sb.append(String.format(" | 배당: %.2f%% | 52주: %.2f~%.2f",
+                dividendYield * 100, fiftyTwoWeekLow, fiftyTwoWeekHigh));
+        return sb.toString();
     }
 
     private String formatMarketCap() {

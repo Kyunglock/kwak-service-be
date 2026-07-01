@@ -10,8 +10,6 @@ import com.investment.portal.domain.repository.portfolio.PortfolioMapper;
 import com.investment.portal.domain.repository.stock.StockPriceHistoryMapper;
 import com.investment.portal.domain.repository.survey.SurveyMapper;
 import com.investment.portal.infrastructure.external.kwakai.KwakAiClient;
-import com.investment.portal.infrastructure.external.yahoo.StockInfo;
-import com.investment.portal.infrastructure.external.yahoo.YahooFinanceClient;
 import com.investment.portal.infrastructure.messaging.InsightBuildProducer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -34,7 +32,7 @@ public class InsightServiceImpl implements InsightService {
     private final PortfolioItemMapper       portfolioItemMapper;
     private final SurveyMapper              surveyMapper;
     private final StockPriceHistoryMapper   stockPriceHistoryMapper;
-    private final YahooFinanceClient        yahooFinanceClient;
+    private final PortfolioStockInfoProvider stockInfoProvider;
     private final KwakAiClient              kwakAiClient;
     private final CombinedInsightPromptBuilder promptBuilder;
     private final CombinedInsightParser     combinedParser;
@@ -82,9 +80,8 @@ public class InsightServiceImpl implements InsightService {
         List<PortfolioItem> allItems = portfolioMapper.findByUserId(userId).stream()
                 .flatMap(p -> portfolioItemMapper.findByPortfolioId(p.getPortfolioId()).stream())
                 .toList();
-        List<String> tickers = allItems.stream().map(PortfolioItem::getStockCd).distinct().toList();
-        Map<String, StockInfo> stockMap = tickers.isEmpty()
-                ? Collections.emptyMap() : yahooFinanceClient.fetchBatch(tickers);
+        Map<String, StockInfo> stockMap = allItems.isEmpty()
+                ? Collections.emptyMap() : stockInfoProvider.fetchForItems(allItems);
 
         // ── 통합 LLM 1회 호출 ──
         CombinedInsight combined = callCombinedLlm(userId, allItems, stockMap);

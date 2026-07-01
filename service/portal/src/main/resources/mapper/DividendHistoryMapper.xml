@@ -32,4 +32,17 @@
          ORDER BY stock_cd, ex_date DESC
     </select>
 
+    <!-- 종목별 최근 1년 주당 배당 합계 (배당수익률 산출용) -->
+    <select id="findTrailingDividendByStockCodes" resultType="com.investment.portal.application.dto.stock.StockDividendRow">
+        SELECT stock_cd       AS stockCd
+             , SUM(dividend)  AS trailingDividend
+          FROM tbl_dividend_history
+         WHERE ex_date >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)
+           AND stock_cd IN
+            <foreach collection="stockCodes" item="stockCd" open="(" separator="," close=")">
+                #{stockCd}
+            </foreach>
+         GROUP BY stock_cd
+    </select>
+
 </mapper>

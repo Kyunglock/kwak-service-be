@@ -70,6 +70,37 @@
          ORDER BY c.ticker
     </select>
 
+    <!-- 인사이트 종목 컨텍스트: 회사마스터 + 최신 종가 + 최근 1년 고저 -->
+    <select id="findStockContextByStockCodes" resultType="com.investment.portal.application.dto.stock.StockContextRow">
+        SELECT c.ticker         AS stockCd
+             , c.company_name    AS companyName
+             , c.sector         AS sector
+             , lp.open_price    AS openPrice
+             , lp.close_price   AS closePrice
+             , agg.week52_high  AS week52High
+             , agg.week52_low   AS week52Low
+          FROM tbl_companies c
+          LEFT JOIN tbl_stock_price_history lp
+                 ON lp.stock_cd = c.ticker
+                AND lp.price_dt = (
+                        SELECT MAX(price_dt)
+                          FROM tbl_stock_price_history
+                         WHERE stock_cd = c.ticker
+                    )
+          LEFT JOIN (
+                SELECT stock_cd
+                     , MAX(high_price) AS week52_high
+                     , MIN(low_price)  AS week52_low
+                  FROM tbl_stock_price_history
+                 WHERE price_dt >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)
+                 GROUP BY stock_cd
+          ) agg ON agg.stock_cd = c.ticker
+         WHERE c.ticker IN
+            <foreach collection="stockCodes" item="stockCd" open="(" separator="," close=")">
+                #{stockCd}
+            </foreach>
+    </select>
+
     <!-- 주가 이력 등록 -->
     <insert id="insert" useGeneratedKeys="true" keyProperty="priceId">
         INSERT INTO tbl_stock_price_history (

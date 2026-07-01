@@ -18,7 +18,7 @@ final class InsightServiceTestFactory {
                 mock(com.investment.portal.domain.repository.portfolio.PortfolioItemMapper.class),
                 mock(com.investment.portal.domain.repository.survey.SurveyMapper.class),
                 mock(com.investment.portal.domain.repository.stock.StockPriceHistoryMapper.class),
-                mock(com.investment.portal.infrastructure.external.yahoo.YahooFinanceClient.class),
+                mock(PortfolioStockInfoProvider.class),
                 mock(KwakAiClient.class),
                 new CombinedInsightPromptBuilder(),
                 new CombinedInsightParser(new ObjectMapper()),
