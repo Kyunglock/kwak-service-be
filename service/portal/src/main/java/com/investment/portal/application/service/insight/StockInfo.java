@@ -1,11 +1,14 @@
 package com.investment.portal.application.service.insight;
 
+import org.apache.ibatis.type.Alias;
+
 /**
  * 인사이트 생성에 사용하는 종목 시장 정보.
  * DB(tbl_companies + tbl_stock_price_history + tbl_dividend_history)에서 조립된다.
  * peRatio/marketCap/industry는 현재 DB에 없어 0/""로 채워지며,
  * peRatio는 소비 측에서 "미집계"(peRatio>0 필터)로 처리된다.
  */
+@Alias("InsightStockInfo")
 public record StockInfo(
         String ticker,
         String companyName,
