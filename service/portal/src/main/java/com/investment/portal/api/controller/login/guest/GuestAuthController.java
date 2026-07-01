@@ -1,6 +1,6 @@
 package com.investment.portal.api.controller.login.guest;
 
-import com.investment.portal.application.event.ActivityEvent;
+import kwak.common.application.event.ActivityEvent;
 import com.investment.portal.application.service.login.LoginResponse;
 import com.investment.portal.application.service.login.guest.GuestAuthService;
 import io.swagger.v3.oas.annotations.Operation;

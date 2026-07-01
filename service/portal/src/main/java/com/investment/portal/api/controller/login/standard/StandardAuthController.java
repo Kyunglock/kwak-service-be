@@ -1,7 +1,7 @@
 package com.investment.portal.api.controller.login.standard;
 
 import com.investment.portal.application.dto.login.standard.StandardLoginRequest;
-import com.investment.portal.application.event.ActivityEvent;
+import kwak.common.application.event.ActivityEvent;
 import com.investment.portal.application.service.login.LoginResponse;
 import com.investment.portal.application.service.login.standard.StandardAuthService;
 

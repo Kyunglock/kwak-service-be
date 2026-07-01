@@ -1,4 +1,4 @@
-package com.investment.portal.application.event;
+package kwak.common.application.event;
 
 /**
  * 감사/활동 로그 이벤트.

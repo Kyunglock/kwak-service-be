@@ -2,7 +2,7 @@ package com.investment.portal.application.service.log;
 
 import com.investment.portal.application.dto.log.ActivityLogPage;
 import com.investment.portal.application.dto.log.ActivityLogResponse;
-import com.investment.portal.application.event.ActivityEvent;
+import kwak.common.application.event.ActivityEvent;
 import com.investment.portal.domain.entity.log.ActivityLog;
 import com.investment.portal.domain.repository.log.ActivityLogMapper;
 import lombok.RequiredArgsConstructor;

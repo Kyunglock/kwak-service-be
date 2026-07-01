@@ -1,6 +1,6 @@
 package com.investment.portal.api.controller.login.kakao;
 
-import com.investment.portal.application.event.ActivityEvent;
+import kwak.common.application.event.ActivityEvent;
 import com.investment.portal.application.service.login.LoginResponse;
 import com.investment.portal.application.service.login.kakao.KakaoAuthService;
 

@@ -1,6 +1,6 @@
 package com.investment.portal.api.controller.login;
 
-import com.investment.portal.application.event.ActivityEvent;
+import kwak.common.application.event.ActivityEvent;
 import kwak.common.config.security.JwtTokenProvider;
 import kwak.common.infrastructure.token.RedisTokenStore;
 import kwak.common.infrastructure.token.UserSession;

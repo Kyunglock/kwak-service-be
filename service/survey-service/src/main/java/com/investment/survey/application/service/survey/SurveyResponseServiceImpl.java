@@ -5,7 +5,7 @@ import com.investment.survey.application.dto.response.SurveySubmitRequest;
 import com.investment.survey.application.dto.response.SurveySubmitResponse;
 import com.investment.survey.application.dto.response.SurveyWithMyResponse;
 import com.investment.survey.application.dto.result.SurveyResultResponse;
-import com.investment.survey.application.event.ActivityEvent;
+import kwak.common.application.event.ActivityEvent;
 import com.investment.survey.domain.entity.*;
 import kwak.common.application.dto.PageResponse;
 import com.investment.survey.domain.repository.*;

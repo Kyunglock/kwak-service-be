@@ -36,6 +36,10 @@ jwt:
   expiration: 3600000 # 액세스 토큰 유효시간: 1시간
   refresh-expiration: 604800000 # 리프레시 토큰 유효시간: 7일
 
+system:
+  # survey-service의 SystemSurveyController(뉴스 크롤러 연동)가 사용하는 내부 시스템 API 키
+  api-key: ${SYSTEM_API_KEY}
+
 mybatis:
   mapper-locations: classpath:mapper/**/*.xml
   type-aliases-package: com.investment

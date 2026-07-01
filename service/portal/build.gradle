@@ -28,6 +28,7 @@ dependencies {
   implementation 'org.springframework.data:spring-data-commons'
   annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'
   implementation project(':common')
+  implementation project(':service:survey-service')
 	compileOnly 'org.projectlombok:lombok'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	runtimeOnly 'com.mysql:mysql-connector-j'

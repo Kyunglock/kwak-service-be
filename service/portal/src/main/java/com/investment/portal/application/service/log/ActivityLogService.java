@@ -1,7 +1,7 @@
 package com.investment.portal.application.service.log;
 
 import com.investment.portal.application.dto.log.ActivityLogPage;
-import com.investment.portal.application.event.ActivityEvent;
+import kwak.common.application.event.ActivityEvent;
 
 public interface ActivityLogService {
 
