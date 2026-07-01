@@ -81,6 +81,9 @@ stock:
       base-url: https://finnhub.io/api/v1
       api-key: ${FINNHUB_API_KEY:}
 
+openai:
+  api-key: ${OPENAI_API_KEY:dummy}
+
 springdoc:
   api-docs:
     path: /api-docs

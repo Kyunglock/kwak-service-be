@@ -30,6 +30,7 @@ dependencies {
   implementation project(':common')
   implementation project(':service:survey-service')
   implementation project(':service:market-analyzer')
+  implementation project(':service:stock-advisor')
 	compileOnly 'org.projectlombok:lombok'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	runtimeOnly 'com.mysql:mysql-connector-j'
