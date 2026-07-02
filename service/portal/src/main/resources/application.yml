@@ -48,7 +48,10 @@ system:
   api-key: ${SYSTEM_API_KEY}
 
 mybatis:
-  mapper-locations: classpath:mapper/**/*.xml
+  # classpath*: (별표) 필수 — 병합된 core에서 survey/market/advisor 매퍼 XML은
+  # 각 라이브러리 모듈(별도 classpath 루트/jar)에 있어, classpath: (단일)이면
+  # portal 자신의 mapper/ 루트만 스캔되어 나머지 모듈 매퍼가 미로딩됨.
+  mapper-locations: classpath*:mapper/**/*.xml
   type-aliases-package: com.investment
   configuration:
     map-underscore-to-camel-case: true
