@@ -52,9 +52,6 @@ dependencies {
 
   // Kafka (인사이트 비동기 빌드)
   implementation 'org.springframework.kafka:spring-kafka'
-
-  // Spring AI (market-analyzer 흡수 — OpenAI 자동설정. 이전엔 market 모듈 통해 전이 의존)
-  implementation 'org.springframework.ai:spring-ai-starter-model-openai'
 }
 
 tasks.named('test') {
