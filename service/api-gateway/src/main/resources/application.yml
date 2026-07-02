@@ -32,30 +32,33 @@ spring:
           default-filters:
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials
             - RemoveRequestHeader=Origin
+          # SP1 병합: survey/market/advisor 가 core(portal)로 합쳐져 모든 라우트가 core를 가리킨다.
+          # 접두어(/portal /survey /advisor /market)는 운영 프론트 호환 위해 유지, StripPrefix 후 /api/v1/** 가 core로 전달됨.
+          # (SP2에서 /ai/** → ${AI_URI} 라우트 추가 예정)
           routes:
             - id: portal
-              uri: ${PORTAL_URI:http://localhost:8080}
+              uri: ${CORE_URI:http://localhost:8080}
               predicates:
                 - Path=/portal/**
               filters:
                 - StripPrefix=1
 
             - id: survey
-              uri: ${SURVEY_URI:http://localhost:8081}
+              uri: ${CORE_URI:http://localhost:8080}
               predicates:
                 - Path=/survey/**
               filters:
                 - StripPrefix=1
 
             - id: advisor
-              uri: ${ADVISOR_URI:http://localhost:8082}
+              uri: ${CORE_URI:http://localhost:8080}
               predicates:
                 - Path=/advisor/**
               filters:
                 - StripPrefix=1
 
             - id: market
-              uri: ${MARKET_URI:http://localhost:8083}
+              uri: ${CORE_URI:http://localhost:8080}
               predicates:
                 - Path=/market/**
               filters:
