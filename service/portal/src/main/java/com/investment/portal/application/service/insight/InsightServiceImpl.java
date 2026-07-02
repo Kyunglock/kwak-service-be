@@ -9,9 +9,9 @@ import com.investment.portal.domain.repository.portfolio.PortfolioItemMapper;
 import com.investment.portal.domain.repository.portfolio.PortfolioMapper;
 import com.investment.portal.domain.repository.stock.StockPriceHistoryMapper;
 import com.investment.portal.domain.repository.survey.SurveyMapper;
-import com.investment.portal.infrastructure.external.kwakai.KwakAiClient;
 import com.investment.portal.infrastructure.messaging.InsightBuildProducer;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import kwak.common.ai.AiGatewayClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -33,7 +33,7 @@ public class InsightServiceImpl implements InsightService {
     private final SurveyMapper              surveyMapper;
     private final StockPriceHistoryMapper   stockPriceHistoryMapper;
     private final PortfolioStockInfoProvider stockInfoProvider;
-    private final KwakAiClient              kwakAiClient;
+    private final AiGatewayClient           aiGatewayClient;
     private final CombinedInsightPromptBuilder promptBuilder;
     private final CombinedInsightParser     combinedParser;
     private final InsightBuildStatusService statusService;
@@ -143,7 +143,7 @@ public class InsightServiceImpl implements InsightService {
 
         InsightPromptContext ctx = new InsightPromptContext(
                 items.size(), (int) sectorCnt, surveyBlock(userId), metricsBlock, stockLines);
-        String raw = kwakAiClient.generateContent(CombinedInsightPromptBuilder.SYSTEM_PROMPT, promptBuilder.build(ctx));
+        String raw = aiGatewayClient.generateContent(CombinedInsightPromptBuilder.SYSTEM_PROMPT, promptBuilder.build(ctx));
         if (raw == null) {
             log.warn("[Insight] 통합 LLM 응답 없음 - 규칙 폴백 - userId: {}", userId);
             return null;

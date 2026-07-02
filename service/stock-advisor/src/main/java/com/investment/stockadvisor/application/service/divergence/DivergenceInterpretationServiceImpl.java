@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.investment.stockadvisor.application.dto.divergence.DivergenceInterpretationResponse;
 import com.investment.stockadvisor.domain.entity.divergence.DivergenceDetectionResult;
 import com.investment.stockadvisor.domain.repository.divergence.DivergenceDetectionResultMapper;
-import com.investment.stockadvisor.infrastructure.openai.OpenAiClient;
+import kwak.common.ai.AiGatewayClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -35,7 +35,7 @@ public class DivergenceInterpretationServiceImpl implements DivergenceInterpreta
             """;
 
     private final DivergenceDetectionResultMapper resultMapper;
-    private final OpenAiClient openAiClient;
+    private final AiGatewayClient aiGatewayClient;
     private final ObjectMapper objectMapper;
     private final StringRedisTemplate stringRedisTemplate;
 
@@ -48,7 +48,7 @@ public class DivergenceInterpretationServiceImpl implements DivergenceInterpreta
         }
 
         try {
-            OpenAiClient.ChatResponse chatResponse = openAiClient.chat(SYSTEM_PROMPT, buildUserPrompt(result));
+            AiGatewayClient.ChatResponse chatResponse = aiGatewayClient.openaiChat(SYSTEM_PROMPT, buildUserPrompt(result));
             log.info("[OpenAI] stockCd={} type={} prompt_tokens={} completion_tokens={}",
                     result.getStockCd(), result.getDivergenceType(),
                     chatResponse.promptTokens(), chatResponse.completionTokens());
