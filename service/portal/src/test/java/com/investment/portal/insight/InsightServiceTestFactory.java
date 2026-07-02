@@ -2,8 +2,8 @@ package com.investment.portal.insight;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.investment.portal.application.service.insight.*;
-import com.investment.portal.infrastructure.external.kwakai.KwakAiClient;
 import com.investment.portal.infrastructure.messaging.InsightBuildProducer;
+import kwak.common.ai.AiGatewayClient;
 
 import static org.mockito.Mockito.mock;
 
@@ -19,7 +19,7 @@ final class InsightServiceTestFactory {
                 mock(com.investment.portal.domain.repository.survey.SurveyMapper.class),
                 mock(com.investment.portal.domain.repository.stock.StockPriceHistoryMapper.class),
                 mock(PortfolioStockInfoProvider.class),
-                mock(KwakAiClient.class),
+                mock(AiGatewayClient.class),
                 new CombinedInsightPromptBuilder(),
                 new CombinedInsightParser(new ObjectMapper()),
                 status,

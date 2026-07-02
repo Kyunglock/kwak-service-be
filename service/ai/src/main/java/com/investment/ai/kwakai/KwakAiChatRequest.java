@@ -1,4 +1,4 @@
-package com.investment.portal.application.dto.kwakai;
+package com.investment.ai.kwakai;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;

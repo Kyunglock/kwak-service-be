@@ -1,4 +1,4 @@
-package com.investment.portal.infrastructure.external.kwakai;
+package com.investment.ai.kwakai;
 
 public class KwakAiException extends RuntimeException {
     public KwakAiException(String message) {

@@ -1,4 +1,4 @@
-package com.investment.stockadvisor.application.config;
+package com.investment.ai.openai;
 
 import lombok.Getter;
 import lombok.Setter;

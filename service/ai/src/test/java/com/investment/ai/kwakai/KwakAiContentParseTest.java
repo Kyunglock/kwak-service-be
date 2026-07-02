@@ -1,7 +1,6 @@
-package com.investment.portal.insight;
+package com.investment.ai.kwakai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.investment.portal.infrastructure.external.kwakai.KwakAiClient;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 

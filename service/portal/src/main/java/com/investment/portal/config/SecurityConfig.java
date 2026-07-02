@@ -34,7 +34,6 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/v1/auth/**").permitAll()
                 .requestMatchers("/api/v1/stocks/price/**").permitAll()
-                .requestMatchers("/api/v1/kwakai/**").permitAll()
                 .requestMatchers("/api/system/**").permitAll()
                 .requestMatchers("/swagger", "/swagger-ui/**", "/api-docs/**", "/v3/api-docs/**").permitAll()
                 .requestMatchers("/error").permitAll()

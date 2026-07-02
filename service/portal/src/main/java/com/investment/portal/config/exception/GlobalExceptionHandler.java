@@ -1,6 +1,5 @@
 package com.investment.portal.config.exception;
 
-import com.investment.portal.infrastructure.external.kwakai.KwakAiException;
 import kwak.common.exception.AuthenticationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,13 +25,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AsyncRequestNotUsableException.class)
     public void handleAsyncRequestNotUsable(AsyncRequestNotUsableException e, HttpServletRequest request) {
         log.debug("SSE 클라이언트 연결 종료 - URI: {}", request.getRequestURI());
-    }
-
-    @ExceptionHandler(KwakAiException.class)
-    public ResponseEntity<?> handleKwakAiException(KwakAiException e, HttpServletRequest request) {
-        log.warn("[KwakAI] 호출 실패 - URI: {}, 메시지: {}", request.getRequestURI(), e.getMessage());
-        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-            .body(Map.of("success", false, "errorCode", "KWAKAI_ERROR", "message", e.getMessage()));
     }
 
     @ExceptionHandler(AuthenticationException.class)

@@ -1,6 +1,5 @@
-package com.investment.stockadvisor.infrastructure.openai;
+package com.investment.ai.openai;
 
-import com.investment.stockadvisor.application.config.OpenAiProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;

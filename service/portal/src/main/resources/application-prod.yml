@@ -27,7 +27,3 @@ app:
     url: https://kwaklabs.com
   cookie:
     secure: true
-
-kwakai:
-  base-url: ${KWAKAI_BASE_URL}
-  model: ${KWAKAI_MODEL:gemma4-31b}

@@ -1,10 +1,7 @@
-package com.investment.portal.infrastructure.external.kwakai;
+package com.investment.ai.kwakai;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.investment.portal.application.dto.kwakai.KwakAiChatRequest;
-import com.investment.portal.application.dto.kwakai.KwakAiGenerateRequest;
-import com.investment.portal.application.dto.kwakai.KwakAiMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;

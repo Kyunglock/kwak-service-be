@@ -1,9 +1,6 @@
-package com.investment.portal.api.controller.kwakai;
+package com.investment.ai.kwakai;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.investment.portal.application.dto.kwakai.KwakAiChatRequest;
-import com.investment.portal.application.dto.kwakai.KwakAiGenerateRequest;
-import com.investment.portal.infrastructure.external.kwakai.KwakAiClient;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;

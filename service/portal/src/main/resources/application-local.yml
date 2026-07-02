@@ -38,10 +38,6 @@ springdoc:
   swagger-ui:
     enabled: true
 
-kwakai:
-  base-url: ${KWAKAI_BASE_URL}
-  model: gemma4-31b
-
 logging:
   level:
     "[com.investment.portal]": DEBUG
