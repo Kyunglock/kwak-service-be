@@ -28,9 +28,7 @@ dependencies {
   implementation 'org.springframework.data:spring-data-commons'
   annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'
   implementation project(':common')
-  implementation project(':service:survey-service')
-  implementation project(':service:market-analyzer')
-  implementation project(':service:stock-advisor')
+  implementation project(':service:stock-advisor')   // AI 격리(SP2) 대비 모듈 유지
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'com.mysql:mysql-connector-j'
 	annotationProcessor 'org.projectlombok:lombok'
@@ -54,6 +52,9 @@ dependencies {
 
   // Kafka (인사이트 비동기 빌드)
   implementation 'org.springframework.kafka:spring-kafka'
+
+  // Spring AI (market-analyzer 흡수 — OpenAI 자동설정. 이전엔 market 모듈 통해 전이 의존)
+  implementation 'org.springframework.ai:spring-ai-starter-model-openai'
 }
 
 tasks.named('test') {
