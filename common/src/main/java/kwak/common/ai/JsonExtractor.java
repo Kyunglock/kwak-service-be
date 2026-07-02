@@ -1,4 +1,4 @@
-package com.investment.portal.infrastructure.external.kwakai;
+package kwak.common.ai;
 
 public final class JsonExtractor {
 

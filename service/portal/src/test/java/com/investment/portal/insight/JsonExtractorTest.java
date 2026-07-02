@@ -1,6 +1,6 @@
 package com.investment.portal.insight;
 
-import com.investment.portal.infrastructure.external.kwakai.JsonExtractor;
+import kwak.common.ai.JsonExtractor;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 

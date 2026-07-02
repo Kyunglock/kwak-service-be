@@ -2,7 +2,7 @@ package com.investment.portal.application.service.insight;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.investment.portal.infrastructure.external.kwakai.JsonExtractor;
+import kwak.common.ai.JsonExtractor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
