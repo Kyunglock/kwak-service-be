@@ -4,4 +4,5 @@ include 'common'
 include 'service:api-gateway'
 include 'service:portal'
 include 'service:stock-advisor'
+include 'service:ai'
 // survey-service, market-analyzer 는 portal 로 흡수됨 (모듈 제거)

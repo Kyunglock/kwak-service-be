@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: ai
+server:
+  port: 8090
+system:
+  api-key: ${SYSTEM_API_KEY}
+kwakai:
+  base-url: ${KWAKAI_BASE_URL:http://192.168.0.16:8000/v1}
+  model: ${KWAKAI_MODEL:gemma4-31b}
+openai:
+  base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+  api-key: ${OPENAI_API_KEY:dummy}
