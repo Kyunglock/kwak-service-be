@@ -12,8 +12,10 @@ import com.investment.portal.domain.repository.survey.SurveyMapper;
 import com.investment.portal.infrastructure.messaging.InsightBuildProducer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kwak.common.ai.AiGatewayClient;
+import kwak.common.application.event.ActivityEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -38,6 +40,7 @@ public class InsightServiceImpl implements InsightService {
     private final CombinedInsightParser     combinedParser;
     private final InsightBuildStatusService statusService;
     private final InsightBuildProducer      buildProducer;
+    private final ApplicationEventPublisher eventPublisher;
 
     private static final Map<String, String> TYPE_TITLE = Map.of(
             "KEY_FINDINGS",              "주요 발견사항",
@@ -72,6 +75,8 @@ public class InsightServiceImpl implements InsightService {
             return "ALREADY_PROCESSING";
         }
         buildProducer.publish(userId);
+        eventPublisher.publishEvent(ActivityEvent.of(
+                userId, "INSIGHT_BUILD_REQUEST", "INSIGHT", null, "인사이트 결과생성 요청"));
         return "PROCESSING";
     }
 
@@ -113,6 +118,9 @@ public class InsightServiceImpl implements InsightService {
             insightResultMapper.upsert(item);
             log.info("[Insight] upsert 완료 - userId: {}, type: {}", userId, item.getResultTypeCd());
         });
+        eventPublisher.publishEvent(ActivityEvent.of(
+                userId, "INSIGHT_BUILD_COMPLETE", "INSIGHT", null,
+                "인사이트 " + items.size() + "종 생성 완료" + (combined != null ? " (LLM)" : " (규칙 폴백)")));
     }
 
     @Override
