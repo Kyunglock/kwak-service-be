@@ -52,6 +52,8 @@ dependencies {
 
   // Kafka (인사이트 비동기 빌드)
   implementation 'org.springframework.kafka:spring-kafka'
+
+  developmentOnly 'org.springframework.boot:spring-boot-devtools'
 }
 
 tasks.named('test') {
