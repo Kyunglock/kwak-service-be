@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.investment.portal.domain.repository.log.MenuLogMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="logId">
+        INSERT INTO tbl_menu_log (
+             user_id
+           , session_id
+           , menu_cd
+           , prev_menu_cd
+           , reg_dt
+        ) VALUES (
+             #{userId}
+           , #{sessionId}
+           , #{menuCd}
+           , #{prevMenuCd}
+           , NOW()
+        )
+    </insert>
+
+</mapper>
