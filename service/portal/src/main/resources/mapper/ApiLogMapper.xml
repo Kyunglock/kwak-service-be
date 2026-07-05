@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.investment.portal.domain.repository.log.ApiLogMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="logId">
+        INSERT INTO tbl_api_log (
+             user_id
+           , ip
+           , method
+           , url
+           , request_body
+           , status
+           , user_agent
+           , reg_dt
+        ) VALUES (
+             #{userId}
+           , #{ip}
+           , #{method}
+           , #{url}
+           , #{requestBody}
+           , #{status}
+           , #{userAgent}
+           , NOW()
+        )
+    </insert>
+
+</mapper>
