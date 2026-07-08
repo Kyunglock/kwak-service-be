@@ -27,11 +27,15 @@ public class CombinedInsightParser {
             JsonNode pf = root.get("profile_fit");
             String profileFitJson = (pf != null && pf.isObject())
                     ? objectMapper.writeValueAsString(pf) : null;
+            JsonNode dv = root.get("dividend_insight");
+            String dividendJson = (dv != null && dv.isObject())
+                    ? objectMapper.writeValueAsString(dv) : null;
             return new CombinedInsight(
                     profileFitJson,
                     toLines(root.get("risk_assessment")),
                     toLines(root.get("portfolio_alignment")),
-                    toLines(root.get("investment_recommendation"))
+                    toLines(root.get("investment_recommendation")),
+                    dividendJson
             );
         } catch (Exception e) {
             log.warn("[Insight] 통합 JSON 파싱 실패: {}", e.getMessage());

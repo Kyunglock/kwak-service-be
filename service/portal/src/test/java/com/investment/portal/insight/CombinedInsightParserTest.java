@@ -24,6 +24,7 @@ class CombinedInsightParserTest {
         assertThat(c.riskLines()).containsExactly("리스크 문장1", "리스크 문장2");
         assertThat(c.alignmentLines()).containsExactly("정합성 문장1");
         assertThat(c.recommendationLines()).containsExactly("추천 문장1");
+        assertThat(c.dividendJson()).isNull();
     }
 
     @Test
@@ -34,11 +35,23 @@ class CombinedInsightParserTest {
         assertThat(c.riskLines()).containsExactly("x");
         assertThat(c.alignmentLines()).isEmpty();
         assertThat(c.recommendationLines()).isEmpty();
+        assertThat(c.dividendJson()).isNull();
     }
 
     @Test
     void returnsNullOnNonJson() {
         assertThat(parser.parse("JSON 아님")).isNull();
         assertThat(parser.parse(null)).isNull();
+    }
+
+    @Test
+    void parsesDividendInsight() {
+        String raw = """
+            {"dividend_insight":{"summary":"배당 총평","profileContrast":"대조","findings":["발견1"]},
+             "risk_assessment":["x"]}
+            """;
+        CombinedInsight c = parser.parse(raw);
+        assertThat(c).isNotNull();
+        assertThat(c.dividendJson()).contains("배당 총평").contains("findings");
     }
 }

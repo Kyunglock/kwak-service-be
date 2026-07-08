@@ -6,5 +6,6 @@ public record CombinedInsight(
         String profileFitJson,
         List<String> riskLines,
         List<String> alignmentLines,
-        List<String> recommendationLines
+        List<String> recommendationLines,
+        String dividendJson
 ) {}
