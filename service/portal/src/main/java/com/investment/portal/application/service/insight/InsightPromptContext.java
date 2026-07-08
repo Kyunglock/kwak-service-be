@@ -5,5 +5,6 @@ public record InsightPromptContext(
         int sectorCount,
         String surveyBlock,
         String metricsBlock,
-        String stockLines
+        String stockLines,
+        String dividendBlock
 ) {}

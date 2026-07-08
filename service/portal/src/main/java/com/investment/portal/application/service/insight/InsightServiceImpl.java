@@ -150,7 +150,7 @@ public class InsightServiceImpl implements InsightService {
                 .map(StockInfo::toContextLine).collect(Collectors.joining("\n"));
 
         InsightPromptContext ctx = new InsightPromptContext(
-                items.size(), (int) sectorCnt, surveyBlock(userId), metricsBlock, stockLines);
+                items.size(), (int) sectorCnt, surveyBlock(userId), metricsBlock, stockLines, "");
         String raw = aiGatewayClient.generateContent(CombinedInsightPromptBuilder.SYSTEM_PROMPT, promptBuilder.build(ctx));
         if (raw == null) {
             log.warn("[Insight] 통합 LLM 응답 없음 - 규칙 폴백 - userId: {}", userId);
