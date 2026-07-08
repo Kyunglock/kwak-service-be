@@ -45,4 +45,17 @@
          GROUP BY stock_cd
     </select>
 
+    <!-- 종목별 최근 1년 배당락월 DISTINCT (월별 배당 흐름 산출용) -->
+    <select id="findDividendMonthsByStockCodes" resultType="com.investment.portal.application.dto.stock.DividendMonthRow">
+        SELECT DISTINCT stock_cd        AS stockCd
+             , MONTH(ex_date)           AS divMonth
+          FROM tbl_dividend_history
+         WHERE ex_date >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)
+           AND stock_cd IN
+            <foreach collection="stockCodes" item="stockCd" open="(" separator="," close=")">
+                #{stockCd}
+            </foreach>
+         ORDER BY stockCd, divMonth
+    </select>
+
 </mapper>
