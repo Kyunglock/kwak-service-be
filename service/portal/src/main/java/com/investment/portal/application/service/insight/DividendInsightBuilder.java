@@ -94,7 +94,7 @@ public class DividendInsightBuilder {
     private record Computed(int stockCount, int payerCount,
                             double annualUsd, double annualKrw,
                             double portfolioYield, double dividendStockWeight,
-                            int[] monthlyFlow, String topPayer) {}
+                            int[] monthlyFlow, String topPayer, int krwNoDivCount) {}
 
     private Computed compute(List<PortfolioItem> items, Map<String, StockInfo> stockMap,
                              Map<String, Set<Integer>> monthsByStock) {
@@ -109,6 +109,7 @@ public class DividendInsightBuilder {
         int[] monthly = new int[12];
         String topPayer = null;
         double topPayerKrw = -1;
+        int krwNoDivCount = 0;
 
         int stockCount = 0;
         for (Map.Entry<String, Double> e : qtyByCode.entrySet()) {
@@ -121,6 +122,7 @@ public class DividendInsightBuilder {
             totalKrw += valueKrw;
 
             double annualNative = s.dividendYield() * s.currentPrice() * qty;   // 연 배당(원 통화)
+            if ("KRW".equals(s.currency()) && annualNative <= 0) krwNoDivCount++;
             if (annualNative <= 0) continue;
 
             payerCount++;
@@ -140,13 +142,16 @@ public class DividendInsightBuilder {
 
         double yield  = totalKrw > 0 ? annualAllKrw / totalKrw * 100.0 : 0.0;
         double weight = totalKrw > 0 ? payerValueKrw / totalKrw * 100.0 : 0.0;
-        return new Computed(stockCount, payerCount, annualUsd, annualKrw, yield, weight, monthly, topPayer);
+        return new Computed(stockCount, payerCount, annualUsd, annualKrw, yield, weight, monthly, topPayer, krwNoDivCount);
     }
+
+    private static final String KRW_COVERAGE_CAVEAT = "국내 종목 배당은 집계에서 제외될 수 있습니다.";
 
     private List<String> buildFindings(Computed c) {
         List<String> out = new ArrayList<>();
         if (c.payerCount == 0) {
             if (c.stockCount > 0) out.add("보유 종목 중 배당 지급 종목이 없습니다.");
+            if (c.krwNoDivCount > 0) out.add(KRW_COVERAGE_CAVEAT);
             return out;
         }
         List<String> gapMonths = new ArrayList<>();
@@ -158,6 +163,7 @@ public class DividendInsightBuilder {
         else if (c.portfolioYield <= 3)  out.add(String.format("포트폴리오 배당수익률 %.2f%%로 S&P500 평균 수준입니다.", c.portfolioYield));
         else                             out.add(String.format("포트폴리오 배당수익률 %.2f%%로 높은 편입니다.", c.portfolioYield));
         if (c.topPayer != null) out.add("연 배당 기여 1위: " + c.topPayer);
+        if (c.krwNoDivCount > 0) out.add(KRW_COVERAGE_CAVEAT);
         return out;
     }
 
@@ -180,7 +186,7 @@ public class DividendInsightBuilder {
             return "안정 지향 성향과 배당주 비중 " + pct + "가 잘 맞는 구성입니다.";
         if (longTerm && band.equals("높음"))
             return "장기 투자 성향에 배당주 비중 " + pct + " — 배당 재투자 관점에서 성향과 부합하는 구성입니다.";
-        if (band.equals("높음"))
+        if (band.equals("높음") && code.charAt(0) == 'G')
             return "성장 지향 성향 대비 배당주 비중이 " + pct + "로 높은 편입니다.";
         return "성향 코드 " + code + " 기준으로 배당주 비중 " + pct + "는 무난한 수준입니다.";
     }
@@ -196,8 +202,14 @@ public class DividendInsightBuilder {
                 root.put("profileContrast", llm.get("profileContrast").asText());
             JsonNode f = llm.get("findings");
             if (f != null && f.isArray() && !f.isEmpty()) {
-                ArrayNode arr = root.putArray("findings");
-                f.forEach(n -> arr.add(n.asText()));
+                List<String> filtered = new ArrayList<>();
+                f.forEach(n -> {
+                    if (n.isTextual() && !n.asText().isBlank()) filtered.add(n.asText());
+                });
+                if (!filtered.isEmpty()) {
+                    ArrayNode arr = root.putArray("findings");
+                    filtered.forEach(arr::add);
+                }
             }
         } catch (Exception e) {
             log.warn("[Insight] DIVIDEND_INSIGHT LLM 서술 병합 실패 - 템플릿 유지: {}", e.getMessage());

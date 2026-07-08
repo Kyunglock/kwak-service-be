@@ -100,9 +100,10 @@ public class InsightServiceImpl implements InsightService {
                 : DividendInsightBuilder.toMonthsMap(
                         dividendHistoryMapper.findDividendMonthsByStockCodes(tickers));
         String dividendBlock = dividendInsightBuilder.promptBlock(allItems, stockMap, divMonths);
+        String surveyBlock = surveyBlock(userId);
 
         // ── 통합 LLM 1회 호출 ──
-        CombinedInsight combined = callCombinedLlm(userId, allItems, stockMap, dividendBlock);
+        CombinedInsight combined = callCombinedLlm(userId, allItems, stockMap, dividendBlock, surveyBlock);
 
         // ── LLM 4종 (없으면 규칙 폴백) ──
         String riskContent = (combined != null && !combined.riskLines().isEmpty())
@@ -118,7 +119,7 @@ public class InsightServiceImpl implements InsightService {
                 ? combined.profileFitJson()
                 : buildProfileFitFallback(userId, allItems, stockMap);
         String dividendContent = dividendInsightBuilder.buildContent(
-                allItems, stockMap, divMonths, surveyBlock(userId),
+                allItems, stockMap, divMonths, surveyBlock,
                 combined != null ? combined.dividendJson() : null);
 
         List<InsightResult> items = List.of(
@@ -152,7 +153,8 @@ public class InsightServiceImpl implements InsightService {
     private CombinedInsight callCombinedLlm(String userId,
                                             List<PortfolioItem> items,
                                             Map<String, StockInfo> stockMap,
-                                            String dividendBlock) {
+                                            String dividendBlock,
+                                            String surveyBlock) {
         if (items.isEmpty()) return null;
         List<StockInfo> infoList = new ArrayList<>(stockMap.values());
         if (infoList.isEmpty()) return null;
@@ -168,7 +170,7 @@ public class InsightServiceImpl implements InsightService {
                 .map(StockInfo::toContextLine).collect(Collectors.joining("\n"));
 
         InsightPromptContext ctx = new InsightPromptContext(
-                items.size(), (int) sectorCnt, surveyBlock(userId), metricsBlock, stockLines, dividendBlock);
+                items.size(), (int) sectorCnt, surveyBlock, metricsBlock, stockLines, dividendBlock);
         String raw = aiGatewayClient.generateContent(CombinedInsightPromptBuilder.SYSTEM_PROMPT, promptBuilder.build(ctx));
         if (raw == null) {
             log.warn("[Insight] 통합 LLM 응답 없음 - 규칙 폴백 - userId: {}", userId);

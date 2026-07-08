@@ -116,6 +116,39 @@ class DividendInsightBuilderTest {
     }
 
     @Test
+    void profileContrastForValueProfileDoesNotSayGrowthOriented() throws Exception {
+        // VST(가치·안정·단기) 성향 + 배당주 비중 100% → "성장 지향" 오문이 나오면 안 됨
+        List<PortfolioItem> items = List.of(item("KO", 10));
+        Map<String, StockInfo> stocks = Map.of("KO", stock("KO", 80, 0.025, "USD"));
+        String survey = "투자 성향 코드: VST\n수익추구 30 / 리스크허용 25 / 장기투자 20";
+        JsonNode j = om.readTree(builder.buildContent(items, stocks, Map.of(), survey, null));
+        assertThat(j.get("profileContrast").asText()).doesNotContain("성장 지향");
+    }
+
+    @Test
+    void findingsIncludeKrwDividendCaveatWhenKrwStockHasNoDividend() throws Exception {
+        // 삼성전자(KRW, 무배당) + KO(USD, 배당) → 국내 종목 배당 caveat 필요
+        List<PortfolioItem> items = List.of(item("005930.KS", 10), item("KO", 10));
+        Map<String, StockInfo> stocks = Map.of(
+                "005930.KS", stock("005930.KS", 300_000, 0.0, "KRW"),
+                "KO", stock("KO", 80, 0.025, "USD"));
+        JsonNode j = om.readTree(builder.buildContent(items, stocks, Map.of(), "설문 미완료", null));
+        assertThat(j.get("findings").toString()).contains("국내 종목 배당은 집계에서 제외될 수 있습니다.");
+    }
+
+    @Test
+    void findingsIncludeCaveatEvenWhenNoPayerAtAll() throws Exception {
+        // 삼성전자(KRW, 무배당) 단일 종목 → payerCount=0 이어도 caveat 필요
+        List<PortfolioItem> items = List.of(item("005930.KS", 10));
+        Map<String, StockInfo> stocks = Map.of(
+                "005930.KS", stock("005930.KS", 300_000, 0.0, "KRW"));
+        JsonNode j = om.readTree(builder.buildContent(items, stocks, Map.of(), "설문 미완료", null));
+        String findings = j.get("findings").toString();
+        assertThat(findings).contains("배당 지급 종목이 없습니다.");
+        assertThat(findings).contains("국내 종목 배당은 집계에서 제외될 수 있습니다.");
+    }
+
+    @Test
     void toMonthsMapGroupsByStock() {
         DividendMonthRow r1 = new DividendMonthRow(); r1.setStockCd("KO"); r1.setDivMonth(1);
         DividendMonthRow r2 = new DividendMonthRow(); r2.setStockCd("KO"); r2.setDivMonth(4);
