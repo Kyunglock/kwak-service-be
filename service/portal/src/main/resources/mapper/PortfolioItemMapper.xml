@@ -23,7 +23,7 @@
            AND use_yn = 'Y'
     </select>
 
-    <!-- 포트폴리오ID로 종목 목록 + 종목명·섹터 조인 조회 -->
+    <!-- 포트폴리오ID로 종목 목록 + 종목명·섹터·최근 종가 조인 조회 -->
     <select id="findWithCompanyByPortfolioId" resultType="com.investment.portal.application.dto.portfolio.item.PortfolioPositionDto">
         SELECT pi.item_id        AS itemId
              , pi.portfolio_id   AS portfolioId
@@ -38,8 +38,17 @@
              , pi.buy_amount     AS buyAmount
              , pi.currency
              , pi.memo
+             , h.close_price     AS closePrice
+             , h.price_dt        AS priceDt
           FROM tbl_portfolio_item pi
           LEFT JOIN tbl_companies c ON pi.stock_cd = c.ticker
+          LEFT JOIN tbl_stock_price_history h
+                 ON h.stock_cd = pi.stock_cd
+                AND h.price_dt = (
+                        SELECT MAX(price_dt)
+                          FROM tbl_stock_price_history
+                         WHERE stock_cd = pi.stock_cd
+                    )
          WHERE pi.portfolio_id = #{portfolioId}
            AND pi.use_yn = 'Y'
          ORDER BY pi.buy_dt DESC

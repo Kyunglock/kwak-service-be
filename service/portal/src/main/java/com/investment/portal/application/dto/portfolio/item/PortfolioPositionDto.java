@@ -54,4 +54,10 @@ public class PortfolioPositionDto {
 
     @Schema(description = "메모")
     private String memo;
+
+    @Schema(description = "최근 종가 (시세 이력이 없으면 null)", example = "175.30")
+    private BigDecimal closePrice;
+
+    @Schema(description = "종가 기준일", example = "2026-07-07")
+    private LocalDate priceDt;
 }
