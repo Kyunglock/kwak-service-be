@@ -46,12 +46,17 @@ class DividendInsightBuilderTest {
         assertThat(j.get("annualDividendUsd").asDouble()).isEqualTo(23.0);
         assertThat(j.get("annualDividendKrw").asDouble()).isEqualTo(0.0);
         assertThat(j.get("portfolioYield").asDouble()).isCloseTo(1.21, org.assertj.core.data.Offset.offset(0.01));
-        // 배당주 비중 = (800+600)/1900 = 73.7%
-        assertThat(j.get("dividendStockWeight").asDouble()).isCloseTo(73.7, org.assertj.core.data.Offset.offset(0.1));
+        // 배당주(수익률 2%+) 비중 = KO만 해당 → 800/1900 = 42.1% (AAPL 0.5%는 배당주 아님)
+        assertThat(j.get("dividendStockWeight").asDouble()).isCloseTo(42.1, org.assertj.core.data.Offset.offset(0.1));
         // 월별: 1,4,7,10월 KO / 2,5,8,11월 AAPL → 3·6·9·12월 공백
         assertThat(j.get("monthlyFlow")).hasSize(12);
         assertThat(j.get("monthlyFlow").get(0).asInt()).isEqualTo(1);
         assertThat(j.get("monthlyFlow").get(2).asInt()).isEqualTo(0);
+        // 월별 예상 금액(₩환산): KO 연 ₩30,000/4개월 = 7,500 (1월) / AAPL 연 ₩4,500/4개월 = 1,125 (2월)
+        assertThat(j.get("monthlyAmountsKrw")).hasSize(12);
+        assertThat(j.get("monthlyAmountsKrw").get(0).asDouble()).isEqualTo(7500.0);
+        assertThat(j.get("monthlyAmountsKrw").get(1).asDouble()).isEqualTo(1125.0);
+        assertThat(j.get("monthlyAmountsKrw").get(2).asDouble()).isEqualTo(0.0);
         assertThat(j.get("summary").asText()).contains("3종목").contains("2종목");
         assertThat(j.get("findings").toString()).contains("공백");
         // 설문 미완료 → 대조 불가 안내
@@ -72,7 +77,8 @@ class DividendInsightBuilderTest {
         assertThat(j.get("annualDividendKrw").asDouble()).isEqualTo(30_000.0);
         // 총 ₩4,200,000 / 연 ₩60,000 → 1.43%
         assertThat(j.get("portfolioYield").asDouble()).isCloseTo(1.43, org.assertj.core.data.Offset.offset(0.01));
-        assertThat(j.get("dividendStockWeight").asDouble()).isEqualTo(100.0);
+        // 배당주(2%+)는 KO뿐 (삼성전자 1.0%는 미달) → 1,200,000/4,200,000 = 28.6%
+        assertThat(j.get("dividendStockWeight").asDouble()).isCloseTo(28.6, org.assertj.core.data.Offset.offset(0.1));
     }
 
     @Test
@@ -81,6 +87,7 @@ class DividendInsightBuilderTest {
         assertThat(j.get("summary").asText()).contains("종목을 추가");
         assertThat(j.get("annualDividendUsd").asDouble()).isEqualTo(0.0);
         assertThat(j.get("monthlyFlow")).hasSize(12);
+        assertThat(j.get("monthlyAmountsKrw")).hasSize(12);
     }
 
     @Test
@@ -111,8 +118,18 @@ class DividendInsightBuilderTest {
         Map<String, StockInfo> stocks = Map.of("KO", stock("KO", 80, 0.025, "USD"));
         String survey = "투자 성향 코드: GSL\n수익추구 72 / 리스크허용 38 / 장기투자 65";
         JsonNode j = om.readTree(builder.buildContent(items, stocks, Map.of(), survey, null));
-        // 안정(S) 성향 + 배당주 비중 100%(높음) → 일치 서술
-        assertThat(j.get("profileContrast").asText()).doesNotContain("설문");
+        // 수익추구(G) 성향 + 배당주 비중 100%(높음) → 불일치 서술 (G축 우선)
+        assertThat(j.get("profileContrast").asText()).doesNotContain("설문").contains("수익추구");
+    }
+
+    @Test
+    void profileContrastFlagsGrowthProfileWithHighDividendWeight() throws Exception {
+        // 수익추구(G) 성향인데 배당주 비중 높음 → "성향과 거리가 있다"는 불일치 서술이 나와야 함
+        List<PortfolioItem> items = List.of(item("KO", 10));
+        Map<String, StockInfo> stocks = Map.of("KO", stock("KO", 80, 0.025, "USD"));
+        String survey = "투자 성향 코드: GRL\n수익추구 80 / 리스크허용 70 / 장기투자 60";
+        JsonNode j = om.readTree(builder.buildContent(items, stocks, Map.of(), survey, null));
+        assertThat(j.get("profileContrast").asText()).contains("거리가 있는");
     }
 
     @Test

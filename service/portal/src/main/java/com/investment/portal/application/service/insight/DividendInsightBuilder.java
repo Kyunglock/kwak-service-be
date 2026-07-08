@@ -33,6 +33,9 @@ public class DividendInsightBuilder {
     /** FE CurrencyContext.EXCHANGE_RATE와 동일한 고정 환율 — 혼합 통화 합산에만 사용 */
     static final double USD_KRW = 1500.0;
 
+    /** 배당주 판정 기준: 배당수익률 2% 이상 (소액 배당 대형주를 배당주로 치지 않기 위함) */
+    static final double DIVIDEND_STOCK_MIN_YIELD = 0.02;
+
     private static final Pattern SURVEY_CODE = Pattern.compile("성향 코드: ([GV][RS][LT])");
 
     private final ObjectMapper objectMapper;
@@ -52,7 +55,7 @@ public class DividendInsightBuilder {
         Computed c = compute(items, stockMap, monthsByStock);
         if (c.stockCount == 0) return "배당 컨텍스트: 보유 종목 없음";
         return String.format(
-                "배당 컨텍스트: 배당주 비중 %.0f%% | 포트폴리오 배당수익률 %.2f%% | 월별 지급 종목 수(1~12월) %s",
+                "배당 컨텍스트: 배당주(수익률 2%% 이상) 비중 %.0f%% | 포트폴리오 배당수익률 %.2f%% | 월별 지급 종목 수(1~12월) %s",
                 c.dividendStockWeight, c.portfolioYield, Arrays.toString(c.monthlyFlow));
     }
 
@@ -74,6 +77,8 @@ public class DividendInsightBuilder {
         root.put("profileContrast", profileContrast(surveyBlock, c));
         ArrayNode flow = root.putArray("monthlyFlow");
         for (int v : c.monthlyFlow) flow.add(v);
+        ArrayNode amounts = root.putArray("monthlyAmountsKrw");
+        for (double v : c.monthlyAmountKrw) amounts.add(Math.round(v));
         ArrayNode findings = root.putArray("findings");
         for (String f : buildFindings(c)) findings.add(f);
 
@@ -85,7 +90,8 @@ public class DividendInsightBuilder {
             log.warn("[Insight] DIVIDEND_INSIGHT 직렬화 실패: {}", e.getMessage());
             return "{\"summary\":\"배당 분석 생성에 실패했습니다.\",\"annualDividendUsd\":0,\"annualDividendKrw\":0,"
                  + "\"portfolioYield\":0,\"dividendStockWeight\":0,\"profileContrast\":\"\","
-                 + "\"monthlyFlow\":[0,0,0,0,0,0,0,0,0,0,0,0],\"findings\":[]}";
+                 + "\"monthlyFlow\":[0,0,0,0,0,0,0,0,0,0,0,0],"
+                 + "\"monthlyAmountsKrw\":[0,0,0,0,0,0,0,0,0,0,0,0],\"findings\":[]}";
         }
     }
 
@@ -94,7 +100,8 @@ public class DividendInsightBuilder {
     private record Computed(int stockCount, int payerCount,
                             double annualUsd, double annualKrw,
                             double portfolioYield, double dividendStockWeight,
-                            int[] monthlyFlow, String topPayer, int krwNoDivCount) {}
+                            int[] monthlyFlow, double[] monthlyAmountKrw,
+                            String topPayer, int krwNoDivCount) {}
 
     private Computed compute(List<PortfolioItem> items, Map<String, StockInfo> stockMap,
                              Map<String, Set<Integer>> monthsByStock) {
@@ -105,8 +112,9 @@ public class DividendInsightBuilder {
         }
 
         int payerCount = 0;
-        double totalKrw = 0, payerValueKrw = 0, annualUsd = 0, annualKrw = 0, annualAllKrw = 0;
+        double totalKrw = 0, divStockValueKrw = 0, annualUsd = 0, annualKrw = 0, annualAllKrw = 0;
         int[] monthly = new int[12];
+        double[] monthlyAmt = new double[12];
         String topPayer = null;
         double topPayerKrw = -1;
         int krwNoDivCount = 0;
@@ -126,7 +134,8 @@ public class DividendInsightBuilder {
             if (annualNative <= 0) continue;
 
             payerCount++;
-            payerValueKrw += valueKrw;
+            // 배당주 비중은 "수익률 2% 이상" 종목만 집계 (소액 배당 대형주 제외)
+            if (s.dividendYield() >= DIVIDEND_STOCK_MIN_YIELD) divStockValueKrw += valueKrw;
             if ("KRW".equals(s.currency())) annualKrw += annualNative;
             else annualUsd += annualNative;
             double annualAsKrw = annualNative * toKrw;
@@ -135,14 +144,18 @@ public class DividendInsightBuilder {
                 topPayerKrw = annualAsKrw;
                 topPayer = s.ticker();
             }
-            for (int m : monthsByStock.getOrDefault(e.getKey(), Set.of())) {
-                if (m >= 1 && m <= 12) monthly[m - 1]++;
+            Set<Integer> months = monthsByStock.getOrDefault(e.getKey(), Set.of());
+            for (int m : months) {
+                if (m >= 1 && m <= 12) {
+                    monthly[m - 1]++;
+                    monthlyAmt[m - 1] += annualAsKrw / months.size();   // 연 배당을 지급월에 균등 분배(예상치)
+                }
             }
         }
 
         double yield  = totalKrw > 0 ? annualAllKrw / totalKrw * 100.0 : 0.0;
-        double weight = totalKrw > 0 ? payerValueKrw / totalKrw * 100.0 : 0.0;
-        return new Computed(stockCount, payerCount, annualUsd, annualKrw, yield, weight, monthly, topPayer, krwNoDivCount);
+        double weight = totalKrw > 0 ? divStockValueKrw / totalKrw * 100.0 : 0.0;
+        return new Computed(stockCount, payerCount, annualUsd, annualKrw, yield, weight, monthly, monthlyAmt, topPayer, krwNoDivCount);
     }
 
     private static final String KRW_COVERAGE_CAVEAT = "국내 종목 배당은 집계에서 제외될 수 있습니다.";
@@ -167,7 +180,11 @@ public class DividendInsightBuilder {
         return out;
     }
 
-    /** 설문 성향 코드(2번째 글자 R/S=리스크, 3번째 L/T=기간)와 배당주 비중 3구간 대조. */
+    /**
+     * 성향 코드와 배당주(수익률 2%+) 비중 대조.
+     * 1번째 글자 G/V(수익추구)가 1차 축 — 수익추구 성향이면 배당주 비중이 낮은 게 일관,
+     * 수익추구가 낮으면(V) 배당·안정 선호로 보아 비중이 높은 게 일관. S(리스크 허용 낮음)는 보조 축.
+     */
     private String profileContrast(String surveyBlock, Computed c) {
         if (c.stockCount == 0) return "";
         Matcher m = surveyBlock == null ? null : SURVEY_CODE.matcher(surveyBlock);
@@ -175,19 +192,19 @@ public class DividendInsightBuilder {
             return "설문을 완료하면 투자 성향과 배당 구성을 대조해 드립니다.";
         }
         String code = m.group(1);
-        boolean stable   = code.charAt(1) == 'S';   // 리스크 허용 낮음 → 안정 지향
-        boolean longTerm = code.charAt(2) == 'L';
+        boolean growth = code.charAt(0) == 'G';   // 수익추구 높음
+        boolean stable = code.charAt(1) == 'S';   // 리스크 허용 낮음 → 안정 지향
         String band = c.dividendStockWeight < 20 ? "낮음" : c.dividendStockWeight <= 60 ? "중간" : "높음";
         String pct = String.format("%.0f%%", c.dividendStockWeight);
 
-        if (stable && band.equals("낮음"))
+        if (growth && band.equals("높음"))
+            return "수익추구 성향인데 배당주 비중이 " + pct + "로 높습니다. 성장주 중심 성향과는 거리가 있는 구성입니다.";
+        if (growth && band.equals("낮음"))
+            return "수익추구 성향과 배당주 비중 " + pct + " — 성향대로 성장주 중심의 구성입니다.";
+        if (!growth && stable && band.equals("낮음"))
             return "안정 지향 성향이지만 배당주 비중이 " + pct + "로 낮아, 현금흐름 안정성 측면에서 성향과 차이가 있습니다.";
-        if (stable)
-            return "안정 지향 성향과 배당주 비중 " + pct + "가 잘 맞는 구성입니다.";
-        if (longTerm && band.equals("높음"))
-            return "장기 투자 성향에 배당주 비중 " + pct + " — 배당 재투자 관점에서 성향과 부합하는 구성입니다.";
-        if (band.equals("높음") && code.charAt(0) == 'G')
-            return "성장 지향 성향 대비 배당주 비중이 " + pct + "로 높은 편입니다.";
+        if (!growth && band.equals("높음"))
+            return "안정·배당 선호 성향과 배당주 비중 " + pct + "가 잘 맞는 구성입니다.";
         return "성향 코드 " + code + " 기준으로 배당주 비중 " + pct + "는 무난한 수준입니다.";
     }
 
