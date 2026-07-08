@@ -1,9 +1,11 @@
 package com.investment.portal.application.service.insight;
 
 import com.investment.portal.application.dto.insight.InsightResultResponse;
+import com.investment.portal.application.dto.stock.DividendMonthRow;
 import com.investment.portal.application.dto.stock.StockWithLatestPriceResponse;
 import com.investment.portal.domain.entity.insight.InsightResult;
 import com.investment.portal.domain.entity.portfolio.PortfolioItem;
+import com.investment.portal.domain.repository.dividend.DividendHistoryMapper;
 import com.investment.portal.domain.repository.insight.InsightResultMapper;
 import com.investment.portal.domain.repository.portfolio.PortfolioItemMapper;
 import com.investment.portal.domain.repository.portfolio.PortfolioMapper;
@@ -35,6 +37,8 @@ public class InsightServiceImpl implements InsightService {
     private final SurveyMapper              surveyMapper;
     private final StockPriceHistoryMapper   stockPriceHistoryMapper;
     private final PortfolioStockInfoProvider stockInfoProvider;
+    private final DividendHistoryMapper      dividendHistoryMapper;
+    private final DividendInsightBuilder     dividendInsightBuilder;
     private final AiGatewayClient           aiGatewayClient;
     private final CombinedInsightPromptBuilder promptBuilder;
     private final CombinedInsightParser     combinedParser;
@@ -49,7 +53,8 @@ public class InsightServiceImpl implements InsightService {
             "PORTFOLIO_ALIGNMENT",       "포트폴리오 정합성",
             "INVESTMENT_RECOMMENDATION", "투자 추천",
             "STOCK_MBTI",                "투자 MBTI",
-            "PROFILE_FIT",               "성향 적합도"
+            "PROFILE_FIT",               "성향 적합도",
+            "DIVIDEND_INSIGHT",          "배당 인사이트"
     );
 
     // ── 조회 ──────────────────────────────────────────────────────────────────
@@ -88,8 +93,16 @@ public class InsightServiceImpl implements InsightService {
         Map<String, StockInfo> stockMap = allItems.isEmpty()
                 ? Collections.emptyMap() : stockInfoProvider.fetchForItems(allItems);
 
+        // ── 배당 컨텍스트 (DIVIDEND_INSIGHT + 통합 프롬프트 공용) ──
+        List<String> tickers = allItems.stream().map(PortfolioItem::getStockCd)
+                .filter(Objects::nonNull).distinct().toList();
+        Map<String, Set<Integer>> divMonths = tickers.isEmpty() ? Map.of()
+                : DividendInsightBuilder.toMonthsMap(
+                        dividendHistoryMapper.findDividendMonthsByStockCodes(tickers));
+        String dividendBlock = dividendInsightBuilder.promptBlock(allItems, stockMap, divMonths);
+
         // ── 통합 LLM 1회 호출 ──
-        CombinedInsight combined = callCombinedLlm(userId, allItems, stockMap);
+        CombinedInsight combined = callCombinedLlm(userId, allItems, stockMap, dividendBlock);
 
         // ── LLM 4종 (없으면 규칙 폴백) ──
         String riskContent = (combined != null && !combined.riskLines().isEmpty())
@@ -104,6 +117,9 @@ public class InsightServiceImpl implements InsightService {
         String profileFitContent = (combined != null && combined.profileFitJson() != null)
                 ? combined.profileFitJson()
                 : buildProfileFitFallback(userId, allItems, stockMap);
+        String dividendContent = dividendInsightBuilder.buildContent(
+                allItems, stockMap, divMonths, surveyBlock(userId),
+                combined != null ? combined.dividendJson() : null);
 
         List<InsightResult> items = List.of(
                 buildKeyFindings(userId),
@@ -112,7 +128,8 @@ public class InsightServiceImpl implements InsightService {
                 buildItem(userId, "PORTFOLIO_ALIGNMENT", alignContent),
                 buildItem(userId, "INVESTMENT_RECOMMENDATION", recoContent),
                 buildStockMbti(userId),
-                buildItem(userId, "PROFILE_FIT", profileFitContent)
+                buildItem(userId, "PROFILE_FIT", profileFitContent),
+                buildItem(userId, "DIVIDEND_INSIGHT", dividendContent)
         );
         items.forEach(item -> {
             insightResultMapper.upsert(item);
@@ -134,7 +151,8 @@ public class InsightServiceImpl implements InsightService {
     /** 통합 프롬프트 구성 후 LLM 1회 호출 → 파싱. 실패 시 null. */
     private CombinedInsight callCombinedLlm(String userId,
                                             List<PortfolioItem> items,
-                                            Map<String, StockInfo> stockMap) {
+                                            Map<String, StockInfo> stockMap,
+                                            String dividendBlock) {
         if (items.isEmpty()) return null;
         List<StockInfo> infoList = new ArrayList<>(stockMap.values());
         if (infoList.isEmpty()) return null;
@@ -150,7 +168,7 @@ public class InsightServiceImpl implements InsightService {
                 .map(StockInfo::toContextLine).collect(Collectors.joining("\n"));
 
         InsightPromptContext ctx = new InsightPromptContext(
-                items.size(), (int) sectorCnt, surveyBlock(userId), metricsBlock, stockLines, "");
+                items.size(), (int) sectorCnt, surveyBlock(userId), metricsBlock, stockLines, dividendBlock);
         String raw = aiGatewayClient.generateContent(CombinedInsightPromptBuilder.SYSTEM_PROMPT, promptBuilder.build(ctx));
         if (raw == null) {
             log.warn("[Insight] 통합 LLM 응답 없음 - 규칙 폴백 - userId: {}", userId);
