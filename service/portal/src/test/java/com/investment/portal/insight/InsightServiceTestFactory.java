@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.investment.portal.application.service.insight.*;
 import com.investment.portal.infrastructure.messaging.InsightBuildProducer;
 import kwak.common.ai.AiGatewayClient;
+import org.springframework.context.ApplicationEventPublisher;
 
 import static org.mockito.Mockito.mock;
 
@@ -23,7 +24,8 @@ final class InsightServiceTestFactory {
                 new CombinedInsightPromptBuilder(),
                 new CombinedInsightParser(new ObjectMapper()),
                 status,
-                producer
+                producer,
+                mock(ApplicationEventPublisher.class)
         );
     }
 }
