@@ -55,6 +55,7 @@ public class GuestAuthServiceImpl implements GuestAuthService {
                 .userId(userId)
                 .nickname(nickname)
                 .email(email)
+                .role("USER")
                 .build();
         redisTokenStore.saveSession(sessionId, session, jwtTokenProvider.getRefreshValidityInMilliseconds());
         redisTokenStore.saveRefreshToken(refreshTokenId, sessionId, jwtTokenProvider.getRefreshValidityInMilliseconds());

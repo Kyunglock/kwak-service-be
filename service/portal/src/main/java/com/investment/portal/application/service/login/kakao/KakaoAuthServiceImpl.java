@@ -91,6 +91,7 @@ public class KakaoAuthServiceImpl implements KakaoAuthService {
                 .nickname(user.getNickname())
                 .email(user.getEmail())
                 .profileImgUrl(user.getProfileImgUrl())
+                .role(user.getRole())
                 .build();
         redisTokenStore.saveSession(sessionId, session, jwtTokenProvider.getRefreshValidityInMilliseconds());
 
