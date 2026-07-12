@@ -10,6 +10,7 @@
              , nickname
              , profile_img_url
              , use_yn
+             , role
              , reg_dt
              , upd_dt
              , last_login_dt
@@ -26,6 +27,7 @@
              , nickname
              , profile_img_url
              , use_yn
+             , role
              , reg_dt
              , upd_dt
              , last_login_dt
