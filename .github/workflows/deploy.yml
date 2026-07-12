@@ -14,7 +14,7 @@ jobs:
       - name: Stop existing containers
         run: |
           docker compose down --remove-orphans
-          docker rm -f redis api-gateway portal survey stock-advisor market-analyzer 2>/dev/null || true
+          docker rm -f redis api-gateway portal ai 2>/dev/null || true
 
       - name: Build and start containers
         run: docker compose up --build -d

@@ -1,64 +1,73 @@
 # kwak-service (inv-back) 아키텍처
 
+> SP1 병합(2026-07): survey-service / market-analyzer / stock-advisor 를 portal(core)로 흡수해 4개 서비스 → 1개 앱으로 통합.
+> SP2 추출(2026-07): AI 추론 기능을 별도 앱(`service/ai`, :8090)으로 분리.
+
 ## 프로젝트 구조
 
 ```
-kwak-service - 멀티모듈 Gradle, Java 21, Spring Boot 3.5.9
+inv-back - 멀티모듈 Gradle, Java 21, Spring Boot 3.5.9
 │
-├── settings.gradle              루트 설정 (6개 모듈 include)
-├── build.gradle                 공통 플러그인/의존성 관리
+├── settings.gradle              루트 설정 (4개 모듈: common, api-gateway, portal, ai)
+├── build.gradle                 공통 플러그인/의존성 관리 (Spring AI BOM 포함)
+├── docker-compose.kafka.yml     로컬 Kafka (KRaft 단일 노드, :9092)
 │
-├── common/                      공통 라이브러리 (java-library)
-│   ├── RokResponse<T>           통일된 API 응답 포맷
-│   ├── PageResponse<T>          페이지네이션 응답
-│   ├── ResponseUtil             HTTP 응답 헬퍼 (success, error, redirect 등)
-│   ├── AuthenticationException  인증 예외
-│   └── ObjectUtil               null/string 유틸
+├── common/                      공통 라이브러리 (모든 앱이 의존)
+│   ├── ai/AiGatewayClient       core → ai-app 추론 호출 클라이언트 (X-System-Key 인증)
+│   ├── application/dto/         RokResponse<T>, PageResponse<T>
+│   ├── application/event/       ActivityEvent (활동 로그 이벤트)
+│   ├── config/security/         JwtAuthenticationFilter, JwtTokenProvider
+│   ├── infrastructure/token/    RedisTokenStore, UserSession
+│   └── util/                    ResponseUtil, ObjectUtil
 │
-├── service/api-gateway/         API 게이트웨이 (포트 8000) ← 단일 진입점
-│   ├── Spring Cloud Gateway (WebFlux 기반)
-│   ├── 경로 기반 라우팅 (하위 서비스 포트 비노출)
-│   └── 글로벌 CORS 설정
+├── service/api-gateway/         API 게이트웨이 (포트 9000) ← 단일 진입점
+│   ├── Spring Cloud Gateway (WebFlux)
+│   ├── 접두어 라우팅 (/portal /survey /advisor /market → 모두 core)
+│   └── 글로벌 CORS
 │
-├── service/portal/              메인 서비스 (포트 8080)
-│   ├── 카카오 OAuth 소셜 로그인
-│   ├── JWT 인증 + Redis 세션 관리
-│   ├── 포트폴리오 CRUD
-│   ├── 거래내역 관리
-│   ├── 실시간 주가 (Finnhub API + Caffeine 캐시)
-│   └── Swagger, Actuator
+├── service/portal/              core 앱 (포트 8080) ← 모든 비즈니스 로직
+│   │                            패키지 4개가 옛 서비스 경계를 유지한 채 공존
+│   ├── com.investment.portal        인증(카카오/일반/게스트), 포트폴리오, 거래내역,
+│   │                                실시간 주가(Finnhub+Caffeine), 인사이트(Kafka+AI),
+│   │                                배당, 로깅(activity/menu/api)
+│   ├── com.investment.survey        설문 CRUD/응답/통계, 공통코드, 크롤러 연동(System API)
+│   ├── com.investment.stockadvisor  구루 포트폴리오/최근활동, 다이버전스, 투자성향 설문
+│   └── com.investment.analyzer      시장 통계, 배당 히스토리, 뉴스, 스케줄러
 │
-├── service/survey-service/      설문조사 서비스 (포트 8081)
-│   ├── 설문 CRUD / 응답 제출
-│   ├── 설문 통계
-│   ├── 공통코드 관리
-│   └── JWT 인증 (독립)
-│
-├── service/stock-advisor/       주식 조언 서비스 (포트 8082)
-│
-└── service/market-analyzer/     시장 분석 서비스 (포트 8083)
-    └── 시장 통계 API
+└── service/ai/                  AI 추론 게이트웨이 앱 (포트 8090, 내부 전용)
+    ├── kwakai/                  로컬 LLM(vLLM) 클라이언트 — gemma4-31b
+    ├── openai/                  OpenAI 클라이언트
+    └── config/                  X-System-Key 인증 (SystemKeyInterceptor)
 ```
 
-## 의존성 관계
+## 시스템 구성도
 
 ```
-common ← portal, stock-advisor, market-analyzer, survey-service
-
-                         ┌─────────────────────────┐
-                         │   Client (Vue :5173)     │
-                         └────────────┬────────────┘
-                                      │ :8000
-                         ┌────────────▼────────────┐
-                         │      api-gateway         │  Spring Cloud Gateway
-                         └──┬──────┬──────┬────┬───┘
-                            │      │      │    │
-                         :8080  :8081  :8082  :8083
-                         portal survey advisor market
+                    ┌──────────────────────────┐
+                    │    Client (Vue :5173)     │
+                    └────────────┬─────────────┘
+                                 │ :9000
+                    ┌────────────▼─────────────┐
+                    │        api-gateway        │  /portal /survey /advisor /market
+                    │   (Spring Cloud Gateway)  │  → StripPrefix=1 → 모두 core로
+                    └────────────┬─────────────┘
+                                 │ :8080
+      ┌──────────────────────────▼──────────────────────────┐
+      │                     core (portal)                    │
+      │  portal │ survey │ stockadvisor │ analyzer (패키지)  │
+      └──┬──────────┬──────────┬──────────┬─────────────┬───┘
+         │          │          │          │             │ :8090 (X-System-Key)
+      MySQL      Redis      Kafka      Finnhub   ┌──────▼──────┐
+      (주 DB)  (세션/캐시) (:9092,     (주가 API) │   ai-app     │
+                           인사이트)              └──┬───────┬──┘
+                                                    │       │
+                                              vLLM(로컬 LLM)  OpenAI API
+                                              gemma4-31b
 ```
 
-각 서비스는 독립 실행 가능한 Spring Boot 앱이며, 서비스 간 직접 호출은 없음.
-외부에는 api-gateway(:8000)만 노출하고, 하위 서비스 포트는 내부 네트워크에서만 접근한다.
+- 외부에는 api-gateway(:9000)만 노출한다. core(:8080)와 ai(:8090)는 내부 전용.
+- core → ai 호출은 common의 `AiGatewayClient`가 담당하며 `X-System-Key` 헤더로 인증한다.
+- 옛 서비스 간 경로 접두어(/portal /survey /advisor /market)는 프론트 호환을 위해 게이트웨이에 유지하고, StripPrefix 후 `/api/v1/**` 형태로 core에 전달된다.
 
 ---
 
@@ -66,76 +75,125 @@ common ← portal, stock-advisor, market-analyzer, survey-service
 
 ### 목적
 
-클라이언트가 하위 서비스의 포트를 직접 알지 않아도 되도록 단일 진입점을 제공한다.
-모든 요청은 `:8000`으로 들어와 경로에 따라 적절한 서비스로 라우팅된다.
+클라이언트가 하위 앱의 포트를 직접 알지 않아도 되도록 단일 진입점을 제공한다.
+모든 요청은 `:9000`으로 들어와 경로 접두어에 따라 라우팅된다. SP1 병합 이후 모든 라우트의 목적지는 core 하나다.
 
-### 기술
+### 라우팅 규칙 (local 기본)
 
-- **Spring Cloud Gateway** (Spring Cloud 2024.0.x)
-- WebFlux 기반 비동기/논블로킹 처리
-- `RewritePath` 필터로 경로 그대로 하위 서비스에 전달
+| 클라이언트 요청 경로 | 필터        | 라우팅 대상               |
+| -------------------- | ----------- | ------------------------- |
+| `/portal/**`         | StripPrefix | core `${CORE_URI}` :8080  |
+| `/survey/**`         | StripPrefix | core `${CORE_URI}` :8080  |
+| `/advisor/**`        | StripPrefix | core `${CORE_URI}` :8080  |
+| `/market/**`         | StripPrefix | core `${CORE_URI}` :8080  |
 
-### 라우팅 규칙
+> ⚠️ `application-prod.yml`은 아직 병합 이전 라우트(`survey-service:8081`, `stock-advisor:8082`, `market-analyzer:8083`)를 참조한다. 운영 배포 전 core 단일 라우트로 정리 필요. (`/ai/**` → `${AI_URI}` 라우트는 SP2에서 추가 예정이었으나 현재 ai는 내부 호출 전용)
 
-| 클라이언트 요청 경로         | 라우팅 대상           | 환경변수      |
-| ---------------------------- | --------------------- | ------------- |
-| `/api/v1/auth/**`            | portal :8080          | `PORTAL_URI`  |
-| `/api/v1/portfolios/**`      | portal :8080          | `PORTAL_URI`  |
-| `/api/v1/portfolio-items/**` | portal :8080          | `PORTAL_URI`  |
-| `/api/v1/transactions/**`    | portal :8080          | `PORTAL_URI`  |
-| `/api/v1/stocks/**`          | portal :8080          | `PORTAL_URI`  |
-| `/api/v1/codes/**`           | survey-service :8081  | `SURVEY_URI`  |
-| `/api/v1/surveys/**`         | survey-service :8081  | `SURVEY_URI`  |
-| `/api/v1/surveys-stats/**`   | survey-service :8081  | `SURVEY_URI`  |
-| `/api/v1/guru/**`            | stock-advisor :8082   | `ADVISOR_URI` |
-| `/api/v1/users/**`           | stock-advisor :8082   | `ADVISOR_URI` |
-| `/api/v1/markets/**`         | market-analyzer :8083 | `MARKET_URI`  |
-
-### CORS
-
-글로벌 CORS를 게이트웨이에서 일괄 처리한다. 하위 서비스의 개별 CORS 설정은 불필요하다.
+### CORS (글로벌)
 
 ```
-허용 Origin : http://localhost:5173, http://192.168.0.8:5173
+허용 Origin : localhost:5173, 192.168.0.8:5173,
+              kyungroak.iptime.org (http/https), kwaklabs.com, www.kwaklabs.com
 허용 Method : GET, POST, PUT, DELETE, PATCH, OPTIONS
 허용 Header : *
 Credentials : true
 ```
 
-### 환경 프로파일
-
-| 프로파일       | 하위 서비스 URI                                          |
-| -------------- | -------------------------------------------------------- |
-| `local` (기본) | `http://localhost:{port}`                                |
-| `docker`       | `http://{service-name}:{port}` (docker-compose 서비스명) |
-
-### 환경변수
-
-| 변수          | 기본값 (local)          | Docker 값                     |
-| ------------- | ----------------------- | ----------------------------- |
-| `PORTAL_URI`  | `http://localhost:8080` | `http://portal:8080`          |
-| `SURVEY_URI`  | `http://localhost:8081` | `http://survey-service:8081`  |
-| `ADVISOR_URI` | `http://localhost:8082` | `http://stock-advisor:8082`   |
-| `MARKET_URI`  | `http://localhost:8083` | `http://market-analyzer:8083` |
-
-### 실행
-
-```bash
-# 로컬
-./gradlew :service:api-gateway:bootRun
-
-# Docker 빌드
-docker build -f Dockerfile.gateway -t api-gateway .
-```
+하위 앱의 개별 CORS 설정은 불필요하다.
 
 ---
 
-## 인증 아키텍처 (Portal)
+## Core (portal) — 절충 평탄화
+
+SP1에서 4개 서비스를 하나의 Spring Boot 앱으로 병합하되, **패키지 경계는 옛 서비스 단위로 유지**했다 (도메인 식별 용이 + 추후 재분리 여지).
+
+| 패키지                      | 옛 서비스       | 주요 기능                                                          |
+| --------------------------- | --------------- | ------------------------------------------------------------------ |
+| `com.investment.portal`     | portal          | 인증(카카오 OAuth·일반 로그인·게스트), 포트폴리오/아이템 CRUD, 거래내역, 실시간 주가, 배당, 인사이트, 활동/메뉴 로그 |
+| `com.investment.survey`     | survey-service  | 설문 CRUD·응답·통계, 공통코드, SystemSurveyController(뉴스 크롤러 연동, System API Key 인증) |
+| `com.investment.stockadvisor` | stock-advisor | 구루 포트폴리오·최근 활동, 다이버전스 감지, 투자성향 설문, 스케줄러 |
+| `com.investment.analyzer`   | market-analyzer | 시장 통계, 배당 히스토리, 포트폴리오 배당, 뉴스, 스케줄러          |
+
+### 레이어 규칙 (패키지 공통)
+
+```
+api/controller/     - HTTP 엔드포인트
+application/
+  dto/              - 요청/응답 DTO
+  service/          - 비즈니스 로직
+domain/
+  entity/           - DB 엔티티
+  repository/       - MyBatis 매퍼 인터페이스
+infrastructure/     - 외부 연동 (Finnhub, Kafka 메시징 등)
+config/             - Bean 설정, 예외 처리
+```
+
+### MyBatis 매퍼 주의
+
+`mapper-locations: classpath*:mapper/**/*.xml` — `classpath*:`(별표)가 필수다.
+병합 과정에서 매퍼 XML이 여러 classpath 루트에 존재할 수 있어, 단일 `classpath:`로는 일부 매퍼가 로딩되지 않는다.
+
+---
+
+## AI 앱 (service/ai)
+
+core에서 AI 추론을 분리한 내부 전용 앱. LLM 벤더 교체/장애가 core에 전파되지 않도록 격리한다.
+
+| 항목     | 내용                                                        |
+| -------- | ----------------------------------------------------------- |
+| 포트     | 8090 (외부 비노출)                                          |
+| 인증     | `X-System-Key` 헤더 (SystemKeyInterceptor, `SYSTEM_API_KEY`) |
+| 엔드포인트 | `POST /api/v1/ai/kwakai/generate` — 로컬 LLM 텍스트 생성  |
+|          | `POST /api/v1/ai/openai/chat` — OpenAI 챗 (토큰 수 반환)    |
+| 로컬 LLM | vLLM 서버 (`KWAKAI_BASE_URL`, 기본 192.168.0.16:8000/v1), 모델 `gemma4-31b` |
+| OpenAI   | `OPENAI_API_KEY` (미설정 시 `dummy` — 부팅 실패 방지용 의도된 값) |
+
+core 쪽 호출부는 common의 `AiGatewayClient` 하나로 통일되어 있다 (`ai.base-url` = `${AI_URI:http://localhost:8090}`).
+
+---
+
+## 인사이트 비동기 빌드 (Kafka)
+
+투자자 인사이트(배당 인사이트 등)는 LLM 추론이 오래 걸리므로 Kafka로 비동기 처리한다.
+
+```
+① POST 인사이트 빌드 요청 (RagController)
+   → Redis 락 획득 (insight:build:{userId} = PROCESSING, TTL 300s)
+   → InsightBuildProducer.send() — topic: insight.build.requested (key = userId)
+   → 즉시 202 응답
+
+② InsightBuildConsumer (@KafkaListener, group: insight-builder, concurrency: 1)
+   → InsightService.executeBuild(userId)
+      ├─ 포트폴리오/배당 데이터 수집 (PortfolioStockInfoProvider 등)
+      ├─ 프롬프트 구성 (CombinedInsightPromptBuilder)
+      ├─ AiGatewayClient → ai-app → 로컬 LLM 추론
+      └─ 결과 파싱(CombinedInsightParser) → tbl_insight_result 저장
+   → 성공: insight:build:{userId} = DONE (TTL 60s) / 실패: FAILED
+
+③ 프론트는 상태 폴링 → DONE이면 결과 조회
+```
+
+- 로컬 Kafka는 `docker-compose.kafka.yml`로 기동 (KRaft 단일 노드, 컨테이너명 `kwak-kafka`, `localhost:9092` advertise).
+- 토픽은 `KafkaTopicConfig`에서 자동 생성.
+
+---
+
+## 인증 아키텍처
+
+### 로그인 방식 3종 (portal)
+
+| 방식   | 컨트롤러               | 비고                        |
+| ------ | ---------------------- | --------------------------- |
+| 카카오 | KakaoAuthController    | OAuth 인가코드 → 사용자 생성/조회 |
+| 일반   | StandardAuthController | ID/PW (V2에서 password 컬럼 추가) |
+| 게스트 | GuestAuthController    | 체험용 임시 계정            |
 
 ### JWT 토큰 구조
 
 ```
-JWT Payload: { sub: "sessionId (UUID)", iat: 발급시간, exp: 만료시간 }
+JWT Payload: { sub: "sessionId (UUID)", iat, exp }
+Access Token  : 1시간  (jwt.expiration = 3600000)
+Refresh Token : 7일    (jwt.refresh-expiration = 604800000)
 ```
 
 - JWT에는 **sessionId(UUID)만 포함**, userId 등 유저 정보는 미포함
@@ -143,140 +201,143 @@ JWT Payload: { sub: "sessionId (UUID)", iat: 발급시간, exp: 만료시간 }
 
 ### Redis 저장 구조
 
-| Redis Key                  | Value                                        | TTL                  | 용도                       |
-| -------------------------- | -------------------------------------------- | -------------------- | -------------------------- |
-| `auth:session:{sessionId}` | `{ userId, nickname, email, profileImgUrl }` | 24h (jwt.expiration) | 유저 세션 (sessionId 기반) |
-| `auth:blacklist:{token}`   | `"logout"`                                   | JWT 남은 만료시간    | 로그아웃된 토큰 무효화     |
+| Redis Key                       | Value                                        | TTL               | 용도                     |
+| ------------------------------- | -------------------------------------------- | ----------------- | ------------------------ |
+| `auth:session:{sessionId}`      | `{ userId, nickname, email, profileImgUrl }` | 액세스 토큰 만료  | 유저 세션                |
+| `auth:refresh:{refreshTokenId}` | sessionId                                    | 리프레시 만료(7d) | 리프레시 토큰 → 세션 매핑 |
+| `auth:blacklist:{token}`        | `"logout"`                                   | JWT 남은 만료시간 | 로그아웃 토큰 무효화     |
+| `insight:build:{userId}`        | PROCESSING / DONE / FAILED                   | 300s / 60s        | 인사이트 빌드 상태·락    |
 
-### 인증 흐름
+### 요청 인증 흐름
 
 ```
-[프론트 (Vue, :5173)]
-       │
-       ▼
-① GET /api/v1/auth/kakao/login
-   → 카카오 OAuth 인증 페이지로 리다이렉트 URL 반환
-       │
-       ▼
-② GET /api/v1/auth/kakao/callback?code=xxx
-   → KakaoAuthServiceImpl.loginWithKakao()
-   │
-   ├─ 카카오 인가코드로 Access Token 발급
-   ├─ 카카오 사용자 정보 조회
-   ├─ DB에 사용자 생성/조회
-   ├─ sessionId(UUID) 생성
-   ├─ JWT 토큰 생성 (sessionId만 포함, userId 미포함)
-   ├─ Redis에 유저 세션 저장 (auth:session:{sessionId})
-   └─ accessToken 쿠키 세팅 → 프론트로 리다이렉트
-       │
-       ▼
-③ 이후 인증이 필요한 모든 요청
-   → JwtAuthenticationFilter
-   │
-   ├─ 쿠키/헤더에서 JWT 추출
-   ├─ JWT 서명 검증 + Redis 블랙리스트 체크
-   ├─ JWT에서 sessionId 추출
-   ├─ Redis에서 유저 세션 조회 (auth:session:{sessionId})
-   └─ SecurityContext에 userId + UserSession 세팅
-       │
-       ▼
-④ POST /api/v1/auth/logout
-   → AuthController.logout()
-   │
-   ├─ JWT에서 sessionId 추출
-   ├─ Redis 세션 삭제 (auth:session:{sessionId})
-   ├─ 블랙리스트 등록 (auth:blacklist:{token}, 남은 TTL만큼)
-   └─ accessToken 쿠키 삭제
+요청 → JwtAuthenticationFilter (common)
+  ├─ 쿠키/헤더에서 JWT 추출
+  ├─ 서명 검증 + Redis 블랙리스트 체크
+  ├─ sessionId 추출 → Redis 세션 조회 (auth:session:{sessionId})
+  └─ SecurityContext에 userId(principal) + UserSession(credentials) 세팅
 ```
-
-### SecurityContext에서 유저 정보 접근
 
 ```java
 Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-String userId = (String) auth.getPrincipal();              // 사용자 ID
-UserSession session = (UserSession) auth.getCredentials();  // 세션 정보 (nickname, email 등)
+String userId = (String) auth.getPrincipal();
+UserSession session = (UserSession) auth.getCredentials();
 ```
+
+---
+
+## 로깅 (V4~V6)
+
+| 테이블           | 수집 방식                                        | 조회                                  |
+| ---------------- | ------------------------------------------------ | ------------------------------------- |
+| `tbl_activity_log` | `ActivityEvent`(common) 발행 → ActivityLogEventListener 비동기 저장 | ActivityLogController (관리자는 전체, `app.admin.user-ids`) |
+| `tbl_menu_log`   | 프론트 메뉴 진입 시 MenuLogController 호출       | —                                     |
+| `tbl_api_log`    | API 요청 로그                                    | —                                     |
 
 ---
 
 ## 캐시 전략 (분리 운영)
 
-| 저장소       | 용도               | 선택 이유                                                 |
-| ------------ | ------------------ | --------------------------------------------------------- |
-| **Redis**    | JWT 인증 세션 관리 | 서버 재시작 시에도 유지, 다중 서버 시 공유 가능           |
-| **Caffeine** | 실시간 주가 캐시   | 네트워크 없이 나노초 조회, 초단위 빈번한 읽기/쓰기에 최적 |
+| 저장소       | 용도                                  | 선택 이유                                        |
+| ------------ | ------------------------------------- | ------------------------------------------------ |
+| **Redis**    | 인증 세션, 리프레시 토큰, 블랙리스트, 인사이트 빌드 상태 | 서버 재시작에도 유지, 다중 인스턴스 공유 가능 |
+| **Caffeine** | 실시간 주가 캐시 (StockPriceCacheStore) | 네트워크 없이 나노초 조회, 초단위 읽기/쓰기에 최적 |
 
-### Caffeine 캐시 (StockPriceCacheStore)
-
-- 최대 5,000 종목
-- TTL: 6시간 (장 마감 후 자동 만료)
-- Finnhub API에서 받은 주가 데이터를 메모리에 보관
+Caffeine 주가 캐시: 최대 5,000 종목, TTL 6시간 (Finnhub API 응답 보관).
 
 ---
 
-## 환경 설정 (프로필 분리)
+## DB 마이그레이션
 
-### 프로필별 설정
+`service/portal/src/main/resources/db/migration/`의 SQL을 **수동 실행**한다 (Flyway 미사용).
 
-| 설정       | local (기본)     | prod                          |
-| ---------- | ---------------- | ----------------------------- |
-| DB         | 192.168.0.8:3306 | `${DB_HOST}:${DB_PORT}`       |
-| Redis      | localhost:6379   | `${REDIS_HOST}:${REDIS_PORT}` |
-| 프론트 URL | 192.168.0.8:5173 | rokstock.co.kr                |
-| OAuth 콜백 | 192.168.0.8:8080 | rokstock.co.kr                |
-| Swagger    | 활성화           | 비활성화                      |
-| 로그 레벨  | DEBUG            | INFO                          |
+| 버전 | 내용                          |
+| ---- | ----------------------------- |
+| V2   | tbl_user에 password 추가 (일반 로그인) |
+| V3   | tbl_insight_result 생성       |
+| V4   | tbl_activity_log 생성         |
+| V5   | tbl_menu_log 생성             |
+| V6   | tbl_api_log 생성              |
 
-### 실행 방법
+---
+
+## 환경 설정
+
+### 프로파일
+
+| 앱          | 프로파일        | 비고                                     |
+| ----------- | --------------- | ---------------------------------------- |
+| portal      | `local`(기본) / `prod` | local: MyBatis SQL 로그, Swagger 활성화 |
+| api-gateway | `local`(기본) / `prod` | prod 라우트는 정리 필요 (위 참고)       |
+| ai          | 단일            | 환경변수로만 제어                        |
+
+`.env.example`을 복사해 `.env`를 만들고 값을 채운다 (`.env`는 gitignore).
+
+### 주요 환경변수
+
+| 변수                                     | 사용 앱     | 설명                                      |
+| ---------------------------------------- | ----------- | ----------------------------------------- |
+| `DB_URL`, `DB_USER`, `DB_PASSWORD`       | core        | MySQL                                     |
+| `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | core    | Redis (기본 localhost:6379)               |
+| `KAFKA_BOOTSTRAP_SERVERS`                | core        | Kafka (기본 localhost:9092)               |
+| `JWT_SECRET`                             | core, gateway | JWT 서명 키 (32자 이상)                 |
+| `KAKAO_CLIENT_ID`, `KAKAO_SECRET`        | core        | 카카오 OAuth                              |
+| `NAVER_CLIENT_ID`, `NAVER_SECRET`        | core        | 네이버 OAuth                              |
+| `FINNHUB_API_KEY`                        | core        | 실시간 주가 API                           |
+| `SYSTEM_API_KEY`                         | core, ai    | 내부 시스템 API 키 (core↔ai, 크롤러↔survey) |
+| `AI_URI`                                 | core        | ai-app 주소 (기본 http://localhost:8090)  |
+| `CORE_URI`                               | gateway     | core 주소 (기본 http://localhost:8080)    |
+| `KWAKAI_BASE_URL`, `KWAKAI_MODEL`        | ai          | vLLM 서버 주소·모델 (기본 gemma4-31b)     |
+| `OPENAI_API_KEY`                         | ai          | OpenAI (미설정 시 dummy)                  |
+| `ADMIN_USER_IDS`                         | core        | 관리자 userId 목록 (콤마 구분, 활동로그 전체 조회) |
+| `AUTH_COOKIE_SECURE`                     | core        | JWT 쿠키 Secure 플래그 (HTTPS 배포 시 true) |
+
+### 실행
 
 ```bash
-# 로컬 (기본)
+# 로컬 Kafka 기동 (인사이트 기능 사용 시 필수)
+docker compose -f docker-compose.kafka.yml up -d
+
+# core
 ./gradlew :service:portal:bootRun
 
-# 운영
-./gradlew :service:portal:bootRun --args='--spring.profiles.active=prod'
+# ai (인사이트/AI 기능 사용 시)
+./gradlew :service:ai:bootRun
 
-# 또는 환경변수
+# gateway
+./gradlew :service:api-gateway:bootRun
+
+# 운영 프로파일
 SPRING_PROFILES_ACTIVE=prod java -jar portal.jar
 ```
 
-### prod 환경변수
-
-| 변수                                         | 설명            |
-| -------------------------------------------- | --------------- |
-| `DB_HOST`, `DB_PORT`                         | MySQL 접속 정보 |
-| `DB_USERNAME`, `DB_PASSWORD`                 | MySQL 인증      |
-| `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | Redis 접속 정보 |
-| `JWT_SECRET`                                 | JWT 서명 키     |
-| `KAKAO_CLIENT_ID`, `KAKAO_CLIENT_SECRET`     | 카카오 OAuth    |
-| `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`     | 네이버 OAuth    |
-| `FINNHUB_API_KEY`                            | 주가 API 키     |
-
 ---
 
-## 서비스별 포트
+## 앱별 포트
 
-| 서비스          | 포트 | 외부 노출       |
-| --------------- | ---- | --------------- |
-| api-gateway     | 8000 | O (단일 진입점) |
-| portal          | 8080 | X (내부 전용)   |
-| survey-service  | 8081 | X (내부 전용)   |
-| stock-advisor   | 8082 | X (내부 전용)   |
-| market-analyzer | 8083 | X (내부 전용)   |
+| 앱          | 포트 | 외부 노출                       |
+| ----------- | ---- | ------------------------------- |
+| api-gateway | 9000 | O (단일 진입점)                 |
+| core(portal) | 8080 | X (내부 전용)                  |
+| ai          | 8090 | X (내부 전용, X-System-Key 인증) |
+| Kafka       | 9092 | X (로컬 docker)                 |
 
 ---
 
 ## 주요 기술 스택
 
-| 구분        | 기술                           |
-| ----------- | ------------------------------ |
-| Language    | Java 21                        |
-| Framework   | Spring Boot 3.5.9              |
-| Gateway     | Spring Cloud Gateway 2024.0.x  |
-| Build       | Gradle (멀티모듈)              |
-| ORM         | MyBatis 3.0.5                  |
-| DB          | MySQL                          |
-| Cache       | Redis (세션) + Caffeine (주가) |
-| Auth        | JWT + 카카오 OAuth             |
-| API Docs    | SpringDoc OpenAPI (Swagger)    |
-| HTTP Client | Spring WebFlux (WebClient)     |
+| 구분        | 기술                                       |
+| ----------- | ------------------------------------------ |
+| Language    | Java 21                                    |
+| Framework   | Spring Boot 3.5.9                          |
+| Gateway     | Spring Cloud Gateway (WebFlux)             |
+| Build       | Gradle 멀티모듈 (common, api-gateway, portal, ai) |
+| ORM         | MyBatis 3.0.5                              |
+| DB          | MySQL                                      |
+| Cache       | Redis (세션·상태) + Caffeine (주가)        |
+| Messaging   | Kafka (KRaft, 인사이트 비동기 빌드)        |
+| AI          | vLLM 로컬 LLM (gemma4-31b) + OpenAI, Spring AI BOM |
+| Auth        | JWT (Access 1h + Refresh 7d) + 카카오/네이버 OAuth |
+| Mapping     | MapStruct                                  |
+| API Docs    | SpringDoc OpenAPI — `http://localhost:8080/swagger` |
+| HTTP Client | Spring WebFlux (WebClient)                 |
