@@ -5,13 +5,12 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import kwak.common.util.ResponseUtil;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.Map;
 
 @Tag(name = "활동 로그", description = "감사/활동 로그 조회 API")
@@ -20,11 +19,9 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ActivityLogController {
 
-    private final ActivityLogService activityLogService;
+    private static final String ROLE_ADMIN = "ROLE_ADMIN";
 
-    /** 관리자 userId 목록 (application.yml: app.admin.user-ids, 콤마 구분) */
-    @Value("${app.admin.user-ids:}")
-    private List<String> adminUserIds;
+    private final ActivityLogService activityLogService;
 
     @Operation(summary = "내 활동 내역", description = "로그인 사용자 본인의 활동 로그를 조회합니다")
     @GetMapping("/me")
@@ -35,27 +32,22 @@ public class ActivityLogController {
         return ResponseUtil.success(activityLogService.getMyLogs(userId, page, size));
     }
 
-    @Operation(summary = "관리자 여부 확인", description = "현재 사용자가 관리자(설정 목록)인지 반환합니다")
+    @Operation(summary = "관리자 여부 확인", description = "현재 사용자가 관리자(ROLE_ADMIN)인지 반환합니다")
     @GetMapping("/admin/access")
-    public ResponseEntity<?> adminAccess(@AuthenticationPrincipal String userId) {
-        return ResponseUtil.success(Map.of("isAdmin", isAdmin(userId)));
+    public ResponseEntity<?> adminAccess(Authentication authentication) {
+        boolean isAdmin = authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> ROLE_ADMIN.equals(a.getAuthority()));
+        return ResponseUtil.success(Map.of("isAdmin", isAdmin));
     }
 
     @Operation(summary = "전체 활동 로그(관리자)", description = "관리자만 전체 사용자 활동을 조회합니다")
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping
     public ResponseEntity<?> allLogs(
-            @AuthenticationPrincipal String userId,
             @RequestParam(required = false) String targetUserId,
             @RequestParam(required = false) String actionType,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        if (!isAdmin(userId)) {
-            return ResponseUtil.error(HttpStatus.FORBIDDEN, "관리자만 접근할 수 있습니다.");
-        }
         return ResponseUtil.success(activityLogService.search(targetUserId, actionType, page, size));
-    }
-
-    private boolean isAdmin(String userId) {
-        return userId != null && adminUserIds != null && adminUserIds.contains(userId);
     }
 }

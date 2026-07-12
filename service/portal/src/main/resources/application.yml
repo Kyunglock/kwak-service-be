@@ -70,9 +70,6 @@ app:
   cookie:
     # JWT 쿠키 Secure 플래그. 로컬(HTTP)은 false, HTTPS 배포 시 env로 true 오버라이드
     secure: ${AUTH_COOKIE_SECURE:false}
-  admin:
-    # 관리자 userId 목록(콤마 구분). 활동 로그 전체 조회 권한. env ADMIN_USER_IDS 로 오버라이드
-    user-ids: ${ADMIN_USER_IDS:}
 
 stock:
   api:
