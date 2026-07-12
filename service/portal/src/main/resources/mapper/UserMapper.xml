@@ -68,4 +68,26 @@
           , upd_dt = NOW()
         WHERE user_id = #{userId}
     </update>
+
+    <select id="findByNickname" resultType="User">
+        SELECT user_id
+             , user_nm   AS userNm
+             , email
+             , nickname
+             , profile_img_url
+             , use_yn
+             , role
+             , reg_dt
+             , upd_dt
+             , last_login_dt
+        FROM tbl_user
+        WHERE nickname = #{nickname}
+    </select>
+
+    <update id="updateNickname">
+        UPDATE tbl_user
+        SET nickname = #{nickname}
+          , upd_dt = NOW()
+        WHERE user_id = #{userId}
+    </update>
 </mapper>

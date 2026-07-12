@@ -43,7 +43,12 @@ public interface UserMapper {
      * 마지막 로그인 일시 업데이트
      */
     int updateLastLoginDt(@Param("userId") String userId);
-    
+
+    /**
+     * 닉네임 설정/변경
+     */
+    int updateNickname(@Param("userId") String userId, @Param("nickname") String nickname);
+
     /**
      * 사용자 삭제 (USE_YN = 'N')
      */
