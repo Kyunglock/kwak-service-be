@@ -15,4 +15,5 @@ public class UserSession {
     private String nickname;
     private String email;
     private String profileImgUrl;
+    private String role;   // USER/ADMIN. 구세션(추가 전 직렬화)은 null → 필터에서 USER 폴백
 }

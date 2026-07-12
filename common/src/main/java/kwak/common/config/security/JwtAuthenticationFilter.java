@@ -44,11 +44,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             UserSession session = redisTokenStore.getSession(sessionId);
 
             if (session != null) {
+                String role = session.getRole() != null ? session.getRole() : "USER";
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
                                 session.getUserId(),
                                 session,
-                                List.of(new SimpleGrantedAuthority("ROLE_USER"))
+                                List.of(new SimpleGrantedAuthority("ROLE_" + role))
                         );
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
