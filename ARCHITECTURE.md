@@ -230,7 +230,7 @@ UserSession session = (UserSession) auth.getCredentials();
 
 | 테이블           | 수집 방식                                        | 조회                                  |
 | ---------------- | ------------------------------------------------ | ------------------------------------- |
-| `tbl_activity_log` | `ActivityEvent`(common) 발행 → ActivityLogEventListener 비동기 저장 | ActivityLogController (관리자는 전체, `app.admin.user-ids`) |
+| `tbl_activity_log` | `ActivityEvent`(common) 발행 → ActivityLogEventListener 비동기 저장 | ActivityLogController (관리자는 전체, `tbl_user.role`='ADMIN' → `ROLE_ADMIN` 기반 `@PreAuthorize`) |
 | `tbl_menu_log`   | 프론트 메뉴 진입 시 MenuLogController 호출       | —                                     |
 | `tbl_api_log`    | API 요청 로그                                    | —                                     |
 
@@ -289,7 +289,6 @@ Caffeine 주가 캐시: 최대 5,000 종목, TTL 6시간 (Finnhub API 응답 보
 | `CORE_URI`                               | gateway     | core 주소 (기본 http://localhost:8080)    |
 | `KWAKAI_BASE_URL`, `KWAKAI_MODEL`        | ai          | vLLM 서버 주소·모델 (기본 gemma4-31b)     |
 | `OPENAI_API_KEY`                         | ai          | OpenAI (미설정 시 dummy)                  |
-| `ADMIN_USER_IDS`                         | core        | 관리자 userId 목록 (콤마 구분, 활동로그 전체 조회) |
 | `AUTH_COOKIE_SECURE`                     | core        | JWT 쿠키 Secure 플래그 (HTTPS 배포 시 true) |
 
 ### 실행
