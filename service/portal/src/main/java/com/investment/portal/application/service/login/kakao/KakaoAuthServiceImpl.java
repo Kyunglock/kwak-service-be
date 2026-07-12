@@ -223,7 +223,7 @@ public class KakaoAuthServiceImpl implements KakaoAuthService {
                 .userId(userId)
                 .userNm(kakaoNickname)
                 .email(kakaoEmail)
-                .nickname(kakaoNickname)
+                .nickname(null)   // 닉네임은 유저가 직접 설정 (로그인 후 입력 모달)
                 .profileImgUrl(profileImgUrl)
                 .useYn("Y")
                 .regDt(LocalDateTime.now())
