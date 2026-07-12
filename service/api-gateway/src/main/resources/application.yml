@@ -34,7 +34,7 @@ spring:
             - RemoveRequestHeader=Origin
           # SP1 병합: survey/market/advisor 가 core(portal)로 합쳐져 모든 라우트가 core를 가리킨다.
           # 접두어(/portal /survey /advisor /market)는 운영 프론트 호환 위해 유지, StripPrefix 후 /api/v1/** 가 core로 전달됨.
-          # (SP2에서 /ai/** → ${AI_URI} 라우트 추가 예정)
+          # ai-app(:8090)은 core가 내부 호출(X-System-Key)만 하므로 게이트웨이 라우트 없음.
           routes:
             - id: portal
               uri: ${CORE_URI:http://localhost:8080}

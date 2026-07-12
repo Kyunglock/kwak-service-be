@@ -3,6 +3,7 @@ package com.investment.stockadvisor.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.investment.stockadvisor.application.service.divergence.DivergenceDetectionConverter;
 import com.investment.stockadvisor.application.service.divergence.DivergenceDetectionServiceImpl;
+import com.investment.stockadvisor.application.service.divergence.SectorPercentileSeverityCalculator;
 import com.investment.stockadvisor.domain.detector.DetectionResult;
 import com.investment.stockadvisor.domain.detector.DivergenceDetector;
 import com.investment.stockadvisor.domain.entity.divergence.DivergenceDetectionResult;
@@ -35,6 +36,7 @@ class DivergenceDetectionServiceTest {
     @Mock DivergenceDetectionResultMapper resultMapper;
     @Mock DivergenceDetector detector;
     @Mock DivergenceDetectionConverter converter;
+    @Mock SectorPercentileSeverityCalculator sectorPercentileCalculator;
 
     DivergenceDetectionServiceImpl service;
 
@@ -42,7 +44,8 @@ class DivergenceDetectionServiceTest {
     void setUp() {
         service = new DivergenceDetectionServiceImpl(
             statementMapper, metricsMapper, resultMapper,
-            List.of(detector), converter, new ObjectMapper()
+            List.of(detector), converter, new ObjectMapper(),
+            sectorPercentileCalculator
         );
     }
 

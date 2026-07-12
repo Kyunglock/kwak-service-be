@@ -10,34 +10,36 @@ spring:
     gateway:
       server:
         webflux:
+          # SP1 병합: 모든 라우트가 core(portal 컨테이너) 하나를 가리킨다.
+          # 접두어(/portal /survey /advisor /market)는 프론트 호환 위해 유지.
           routes:
             - id: portal
-              uri: ${PORTAL_URI:http://portal:8080}
+              uri: ${CORE_URI:http://portal:8080}
               predicates:
                 - Path=/portal/**
               filters:
                 - StripPrefix=1
 
             - id: survey
-              uri: ${SURVEY_URI:http://survey-service:8081}
+              uri: ${CORE_URI:http://portal:8080}
               predicates:
                 - Path=/survey/**
               filters:
                 - StripPrefix=1
 
             - id: advisor
-              uri: ${ADVISOR_URI:http://stock-advisor:8082}
+              uri: ${CORE_URI:http://portal:8080}
               predicates:
                 - Path=/advisor/**
               filters:
                 - StripPrefix=1
 
             - id: market
-              uri: ${MARKET_URI:http://market-analyzer:8083}
+              uri: ${CORE_URI:http://portal:8080}
               predicates:
                 - Path=/market/**
               filters:
                 - StripPrefix=1
 
-# JWT 시크렇은 반드시 환경 변수로 주입 (docker-compose 또는 k8s secret)
+# JWT 시크릿은 반드시 환경 변수로 주입 (docker-compose 또는 k8s secret)
 # JWT_SECRET 환경 변수 필수

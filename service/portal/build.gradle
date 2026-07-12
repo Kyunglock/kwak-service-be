@@ -28,7 +28,6 @@ dependencies {
   implementation 'org.springframework.data:spring-data-commons'
   annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'
   implementation project(':common')
-  implementation project(':service:stock-advisor')   // AI 격리(SP2) 대비 모듈 유지
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'com.mysql:mysql-connector-j'
 	annotationProcessor 'org.projectlombok:lombok'

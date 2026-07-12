@@ -51,14 +51,9 @@ public class JwtGlobalFilter implements GlobalFilter, Ordered {
             // prefix 없는 경로 (직접 접근 또는 내부 호출)
             "/api/v1/auth/**",
             "/api/v1/stocks/price/**",
-            "/api/v1/kwakai/**",
-            // 게이트웨이 prefix 포함 경로
+            // 게이트웨이 prefix 포함 경로 (인증/주가 공개 API는 portal 패키지에만 존재)
             "/portal/api/v1/auth/**",
-            "/portal/api/v1/stocks/price/**",
-            "/portal/api/v1/kwakai/**",
-            "/survey/api/v1/auth/**",
-            "/advisor/api/v1/auth/**",
-            "/market/api/v1/auth/**"
+            "/portal/api/v1/stocks/price/**"
     );
 
     private final SecretKey secretKey;
@@ -68,12 +63,12 @@ public class JwtGlobalFilter implements GlobalFilter, Ordered {
 
     public JwtGlobalFilter(
             @Value("${jwt.secret}") String secret,
-            @Value("${PORTAL_URI:http://localhost:8080}") String portalUri,
+            @Value("${CORE_URI:${PORTAL_URI:http://localhost:8080}}") String coreUri,
             ReactiveStringRedisTemplate redisTemplate,
             WebClient.Builder webClientBuilder) {
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.redisTemplate = redisTemplate;
-        this.portalWebClient = webClientBuilder.baseUrl(portalUri).build();
+        this.portalWebClient = webClientBuilder.baseUrl(coreUri).build();
     }
 
     @Override

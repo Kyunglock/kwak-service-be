@@ -41,4 +41,4 @@ springdoc:
 logging:
   level:
     "[com.investment.portal]": DEBUG
-    "[com.investment.stockAdvisor]": DEBUG
+    "[com.investment.stockadvisor]": DEBUG
