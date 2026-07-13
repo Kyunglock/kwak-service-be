@@ -75,4 +75,24 @@
          LIMIT 1
     </select>
 
+    <!--
+        정식 티커 → 종목명 (US: company_name, KR: STOCK_NM)
+        - LLM 프롬프트 표기용. DB 출처라 프롬프트 인젝션 안전.
+    -->
+    <select id="findStockNameByTicker" resultType="string">
+        SELECT company_name
+          FROM tbl_companies
+         WHERE ticker = #{ticker}
+         UNION
+        SELECT STOCK_NM
+          FROM tbl_stock_info
+         WHERE USE_YN = 'Y'
+           AND CASE
+                   WHEN EXCHANGE = 'KOSPI'  THEN CONCAT(STOCK_CD, '.KS')
+                   WHEN EXCHANGE = 'KOSDAQ' THEN CONCAT(STOCK_CD, '.KQ')
+                   ELSE STOCK_CD
+               END = #{ticker}
+         LIMIT 1
+    </select>
+
 </mapper>

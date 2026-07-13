@@ -6,6 +6,7 @@ import com.investment.portal.domain.repository.fortune.FortuneMapper;
 import kwak.common.ai.AiGatewayClient;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -134,7 +135,8 @@ class FortuneServiceTest {
         when(fortuneMapper.findCanonicalTicker("AAPL")).thenReturn(Optional.of("AAPL"));
         when(fortuneMapper.findByTickerAndDate("AAPL", TODAY))
                 .thenReturn(Optional.empty(), Optional.of(saved("AAPL", "새 운세")));
-        when(aiGatewayClient.generateContent(anyString(), eq("종목: AAPL"))).thenReturn("새 운세");
+        when(fortuneMapper.findStockNameByTicker("AAPL")).thenReturn(Optional.of("Apple Inc."));
+        when(aiGatewayClient.generateContent(anyString(), startsWith("종목: AAPL"))).thenReturn("새 운세");
 
         FortuneResponse res = service.getFortune("AAPL");
 
@@ -145,6 +147,7 @@ class FortuneServiceTest {
 
     @Test
     void 동시_경합으로_DuplicateKeyException이_나면_재SELECT_결과를_반환한다() {
+        when(fortuneMapper.findStockNameByTicker("AAPL")).thenReturn(Optional.empty());
         when(fortuneMapper.findCanonicalTicker("AAPL")).thenReturn(Optional.of("AAPL"));
         when(fortuneMapper.findByTickerAndDate("AAPL", TODAY))
                 .thenReturn(Optional.empty(), Optional.of(saved("AAPL", "선점된 운세")));
@@ -160,6 +163,7 @@ class FortuneServiceTest {
 
     @Test
     void LLM이_예외를_던지면_FortuneUnavailableException으로_변환하고_저장하지_않는다() {
+        when(fortuneMapper.findStockNameByTicker("AAPL")).thenReturn(Optional.empty());
         when(fortuneMapper.findCanonicalTicker("AAPL")).thenReturn(Optional.of("AAPL"));
         when(fortuneMapper.findByTickerAndDate("AAPL", TODAY)).thenReturn(Optional.empty());
         when(aiGatewayClient.generateContent(anyString(), anyString())).thenThrow(new RuntimeException("timeout"));
@@ -171,6 +175,7 @@ class FortuneServiceTest {
 
     @Test
     void LLM이_null이나_빈문자열을_반환하면_FortuneUnavailableException() {
+        when(fortuneMapper.findStockNameByTicker("AAPL")).thenReturn(Optional.empty());
         when(fortuneMapper.findCanonicalTicker("AAPL")).thenReturn(Optional.of("AAPL"));
         when(fortuneMapper.findByTickerAndDate("AAPL", TODAY)).thenReturn(Optional.empty());
         when(aiGatewayClient.generateContent(anyString(), anyString())).thenReturn(null, "", "null");
@@ -180,5 +185,40 @@ class FortuneServiceTest {
                     .isInstanceOf(FortuneUnavailableException.class);
         }
         verify(fortuneMapper, never()).insert(any());
+    }
+
+    // ---- 프롬프트 조립 ----
+
+    @Test
+    void 프롬프트에는_DB_종목명과_시드된_행운지수가_들어간다() {
+        when(fortuneMapper.findCanonicalTicker("AAPL")).thenReturn(Optional.of("AAPL"));
+        when(fortuneMapper.findByTickerAndDate("AAPL", TODAY))
+                .thenReturn(Optional.empty(), Optional.of(saved("AAPL", "운세")));
+        when(fortuneMapper.findStockNameByTicker("AAPL")).thenReturn(Optional.of("Apple Inc."));
+        when(aiGatewayClient.generateContent(anyString(), anyString())).thenReturn("운세");
+
+        service.getFortune("AAPL");
+
+        int expected = Math.floorMod(("AAPL" + TODAY).hashCode(), 5) + 1;
+        ArgumentCaptor<String> userCaptor = ArgumentCaptor.forClass(String.class);
+        verify(aiGatewayClient).generateContent(anyString(), userCaptor.capture());
+        assertThat(userCaptor.getValue())
+                .contains("종목: AAPL (Apple Inc.)")
+                .contains("오늘의 행운 지수: " + expected + "/5");
+    }
+
+    @Test
+    void 종목명이_없으면_티커만으로_프롬프트를_만든다() {
+        when(fortuneMapper.findCanonicalTicker("AAPL")).thenReturn(Optional.of("AAPL"));
+        when(fortuneMapper.findByTickerAndDate("AAPL", TODAY))
+                .thenReturn(Optional.empty(), Optional.of(saved("AAPL", "운세")));
+        when(fortuneMapper.findStockNameByTicker("AAPL")).thenReturn(Optional.empty());
+        when(aiGatewayClient.generateContent(anyString(), anyString())).thenReturn("운세");
+
+        service.getFortune("AAPL");
+
+        ArgumentCaptor<String> userCaptor = ArgumentCaptor.forClass(String.class);
+        verify(aiGatewayClient).generateContent(anyString(), userCaptor.capture());
+        assertThat(userCaptor.getValue()).contains("종목: AAPL\n오늘의 행운 지수:");
     }
 }

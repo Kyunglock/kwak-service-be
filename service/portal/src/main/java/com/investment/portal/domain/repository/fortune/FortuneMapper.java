@@ -29,4 +29,10 @@ public interface FortuneMapper {
      * KR 한글 종목명("삼성전자") 및 영문 종목명("NAVER", "SK하이닉스") 대상 — tbl_stock_info.STOCK_NM.
      */
     Optional<String> findCanonicalTickerByName(@Param("name") String name);
+
+    /**
+     * 정식 티커의 종목명 조회 (US: tbl_companies.company_name, KR: tbl_stock_info.STOCK_NM).
+     * LLM 프롬프트 표기용 — LLM이 티커만 보고 회사명을 잘못 지어내는 것 방지.
+     */
+    Optional<String> findStockNameByTicker(@Param("ticker") String ticker);
 }
