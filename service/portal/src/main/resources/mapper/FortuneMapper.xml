@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.investment.portal.domain.repository.fortune.FortuneMapper">
+
+    <!-- (ticker, 기준일) 운세 단건 조회 -->
+    <select id="findByTickerAndDate" resultType="com.investment.portal.domain.entity.fortune.StockFortune">
+        SELECT fortune_id
+             , ticker
+             , fortune_date
+             , content
+             , use_yn
+             , reg_dt
+             , upd_dt
+          FROM tbl_stock_fortune
+         WHERE ticker       = #{ticker}
+           AND fortune_date = #{fortuneDate}
+           AND use_yn       = 'Y'
+    </select>
+
+    <!-- 운세 저장 (동시 경합 시 uk_fortune_ticker_date로 DuplicateKeyException) -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="fortuneId">
+        INSERT INTO tbl_stock_fortune (
+             ticker
+           , fortune_date
+           , content
+           , use_yn
+        ) VALUES (
+             #{ticker}
+           , #{fortuneDate}
+           , #{content}
+           , 'Y'
+        )
+    </insert>
+
+    <!--
+        정식 티커 조회 (US + KR 통합 검증)
+        - US: tbl_companies.ticker 일치
+        - KR: STOCK_CD("005930") 또는 suffix형("005930.KS") 입력 모두 허용,
+          반환은 항상 suffix 정식형 (CompaniesMapper.findAllTickers와 동일 변환 규칙)
+    -->
+    <select id="findCanonicalTicker" resultType="string">
+        SELECT ticker
+          FROM tbl_companies
+         WHERE ticker = #{ticker}
+         UNION
+        SELECT CASE
+                   WHEN EXCHANGE = 'KOSPI'  THEN CONCAT(STOCK_CD, '.KS')
+                   WHEN EXCHANGE = 'KOSDAQ' THEN CONCAT(STOCK_CD, '.KQ')
+                   ELSE STOCK_CD
+               END
+          FROM tbl_stock_info
+         WHERE USE_YN = 'Y'
+           AND (STOCK_CD = #{ticker}
+            OR  CONCAT(STOCK_CD, '.KS') = #{ticker}
+            OR  CONCAT(STOCK_CD, '.KQ') = #{ticker})
+         LIMIT 1
+    </select>
+
+</mapper>
