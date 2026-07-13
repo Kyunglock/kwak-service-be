@@ -58,4 +58,21 @@
          LIMIT 1
     </select>
 
+    <!--
+        종목명 정확 일치로 정식 티커 조회 (KR 한글/영문 종목명 → suffix 정식형)
+        - UPPER 비교: "sk하이닉스" 입력도 "SK하이닉스"에 매치 (테이블 소규모라 함수 비교 허용)
+        - 정확 일치만 지원 (부분 일치는 후속)
+    -->
+    <select id="findCanonicalTickerByName" resultType="string">
+        SELECT CASE
+                   WHEN EXCHANGE = 'KOSPI'  THEN CONCAT(STOCK_CD, '.KS')
+                   WHEN EXCHANGE = 'KOSDAQ' THEN CONCAT(STOCK_CD, '.KQ')
+                   ELSE STOCK_CD
+               END
+          FROM tbl_stock_info
+         WHERE USE_YN = 'Y'
+           AND UPPER(STOCK_NM) = #{name}
+         LIMIT 1
+    </select>
+
 </mapper>

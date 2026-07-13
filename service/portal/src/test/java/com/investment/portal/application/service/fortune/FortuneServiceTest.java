@@ -50,8 +50,8 @@ class FortuneServiceTest {
     }
 
     @Test
-    void 형식위반_입력은_매퍼_조회없이_UnsupportedTickerException() {
-        for (String bad : new String[]{null, "", "애플", "AAPL!", "ABCDEFGHIJKLMNOPQRSTU"}) {
+    void 빈값_null_30자초과는_매퍼_조회없이_UnsupportedTickerException() {
+        for (String bad : new String[]{null, "", "   ", "가".repeat(31)}) {
             assertThatThrownBy(() -> service.getFortune(bad))
                     .as(String.valueOf(bad))
                     .isInstanceOf(UnsupportedTickerException.class);
@@ -60,8 +60,9 @@ class FortuneServiceTest {
     }
 
     @Test
-    void 미등록_티커는_UnsupportedTickerException() {
+    void 티커도_종목명도_미등록이면_UnsupportedTickerException() {
         when(fortuneMapper.findCanonicalTicker("ZZZZ")).thenReturn(Optional.empty());
+        when(fortuneMapper.findCanonicalTickerByName("ZZZZ")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.getFortune("ZZZZ"))
                 .isInstanceOf(UnsupportedTickerException.class);
@@ -77,6 +78,41 @@ class FortuneServiceTest {
         FortuneResponse res = service.getFortune("005930");
 
         assertThat(res.ticker()).isEqualTo("005930.KS");
+    }
+
+    @Test
+    void 한글_종목명은_티커조회_없이_종목명으로_정식티커를_얻는다() {
+        when(fortuneMapper.findCanonicalTickerByName("삼성전자")).thenReturn(Optional.of("005930.KS"));
+        when(fortuneMapper.findByTickerAndDate("005930.KS", TODAY))
+                .thenReturn(Optional.of(saved("005930.KS", "운세")));
+
+        FortuneResponse res = service.getFortune(" 삼성전자 ");
+
+        assertThat(res.ticker()).isEqualTo("005930.KS");
+        verify(fortuneMapper, never()).findCanonicalTicker(anyString());
+    }
+
+    @Test
+    void 소문자_영문_종목명은_대문자로_변환되어_조회된다() {
+        when(fortuneMapper.findCanonicalTickerByName("SK하이닉스")).thenReturn(Optional.of("000660.KS"));
+        when(fortuneMapper.findByTickerAndDate("000660.KS", TODAY))
+                .thenReturn(Optional.of(saved("000660.KS", "운세")));
+
+        FortuneResponse res = service.getFortune("sk하이닉스");
+
+        assertThat(res.ticker()).isEqualTo("000660.KS");
+    }
+
+    @Test
+    void 티커형식이지만_티커에_없으면_종목명으로_폴백한다() {
+        when(fortuneMapper.findCanonicalTicker("NAVER")).thenReturn(Optional.empty());
+        when(fortuneMapper.findCanonicalTickerByName("NAVER")).thenReturn(Optional.of("035420.KS"));
+        when(fortuneMapper.findByTickerAndDate("035420.KS", TODAY))
+                .thenReturn(Optional.of(saved("035420.KS", "운세")));
+
+        FortuneResponse res = service.getFortune("NAVER");
+
+        assertThat(res.ticker()).isEqualTo("035420.KS");
     }
 
     // ---- 캐시 ----

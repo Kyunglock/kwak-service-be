@@ -23,4 +23,10 @@ public interface FortuneMapper {
      * 정식형(005930.KS)으로 반환 — 캐시 키를 시스템 표준(Yahoo suffix) 형식으로 통일.
      */
     Optional<String> findCanonicalTicker(@Param("ticker") String ticker);
+
+    /**
+     * 종목명 정확 일치(UPPER 비교)로 정식 티커 조회 (미등록이면 empty).
+     * KR 한글 종목명("삼성전자") 및 영문 종목명("NAVER", "SK하이닉스") 대상 — tbl_stock_info.STOCK_NM.
+     */
+    Optional<String> findCanonicalTickerByName(@Param("name") String name);
 }
