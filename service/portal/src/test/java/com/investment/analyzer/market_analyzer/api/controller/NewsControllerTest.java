@@ -25,7 +25,7 @@ class NewsControllerTest {
     @Test
     void 브리핑을_200으로_감싸_반환한다() {
         MarketBriefingResponse briefing =
-                new MarketBriefingResponse(LocalDate.of(2026, 7, 14), "요약", List.of());
+                new MarketBriefingResponse(LocalDate.of(2026, 7, 14), "요약", "POSITIVE", List.of());
         when(newsService.getMarketBriefing()).thenReturn(briefing);
 
         ResponseEntity<?> res = controller.getMarketBriefing();

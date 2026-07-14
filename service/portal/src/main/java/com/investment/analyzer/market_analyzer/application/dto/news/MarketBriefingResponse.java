@@ -7,7 +7,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
-public record MarketBriefingResponse(LocalDate summaryDt, String summary, List<ArticleItem> articles) {
+public record MarketBriefingResponse(
+        LocalDate summaryDt, String summary, String sentiment, List<ArticleItem> articles) {
 
     public record ArticleItem(String title, String source, String url, LocalDateTime publishedAt) {
         public static ArticleItem from(NewsArticle article) {
@@ -18,6 +19,6 @@ public record MarketBriefingResponse(LocalDate summaryDt, String summary, List<A
 
     public static MarketBriefingResponse of(MarketSummary summary, List<NewsArticle> articles) {
         return new MarketBriefingResponse(summary.getSummaryDt(), summary.getSummary(),
-                articles.stream().map(ArticleItem::from).toList());
+                summary.getSentiment(), articles.stream().map(ArticleItem::from).toList());
     }
 }

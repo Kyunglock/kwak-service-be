@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 public class MarketSummary {
     private LocalDate summaryDt;   // 시황 기준일 (KST)
     private String summary;        // LLM 시황 요약 (한국어 3~5문장)
+    private String sentiment;      // POSITIVE/NEGATIVE/NEUTRAL (구데이터는 null)
     private Integer articleCount;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
