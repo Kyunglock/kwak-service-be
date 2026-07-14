@@ -181,7 +181,7 @@ public class InsightServiceImpl implements InsightService {
         return parsed;
     }
 
-    /** 설문 점수 → 성향 코드 한 줄 블록. 미완료 시 "설문 미완료". */
+    /** 설문 점수 → 성향 코드 한 줄 블록 (투자 축만). 미완료 시 "설문 미완료". */
     private String surveyBlock(String userId) {
         List<Map<String, Object>> scores = surveyMapper.findRiskProfileScores(userId);
         if (scores.isEmpty()) return "설문 미완료";
@@ -191,8 +191,11 @@ public class InsightServiceImpl implements InsightService {
         double profit = m.getOrDefault("수익추구", 50.0);
         double risk = m.getOrDefault("리스크허용", 50.0);
         double longTerm = m.getOrDefault("장기투자", 50.0);
-        String code = (profit >= 50 ? "G" : "V") + (risk >= 50 ? "R" : "S") + (longTerm >= 50 ? "L" : "T");
-        return String.format("투자 성향 코드: %s\n수익추구 %.0f / 리스크허용 %.0f / 장기투자 %.0f", code, profit, risk, longTerm);
+        double div = m.getOrDefault("분산투자", 50.0);
+        String code = (profit >= 62.5 ? "G" : "V") + (risk >= 62.5 ? "R" : "S")
+                + (longTerm >= 62.5 ? "L" : "T") + (div >= 62.5 ? "D" : "F");
+        return String.format("투자 성향 코드: %s\n수익추구 %.0f / 리스크허용 %.0f / 장기투자 %.0f / 분산투자 %.0f",
+                code, profit, risk, longTerm, div);
     }
 
     /** PROFILE_FIT 규칙 기반 폴백 — JSON 문자열. */
@@ -359,6 +362,9 @@ public class InsightServiceImpl implements InsightService {
                             m -> ((Number) m.get("score")).doubleValue(),
                             (a, b) -> a));
 
+            // 성격 축(EI 등)이 섞이면 평균·최강/최약 축 문구가 오염되므로 투자 축만 남긴다
+            scoreMap.keySet().retainAll(StockMbtiContentBuilder.INVEST_AXES);
+
             double avgScore = scoreMap.values().stream().mapToDouble(Double::doubleValue).average().orElse(50.0);
 
             String typeName = avgScore >= 70 ? "공격 성장형"
@@ -394,16 +400,15 @@ public class InsightServiceImpl implements InsightService {
     }
 
     /**
-     * STOCK_MBTI: 3차원 설문 점수 → G/V · R/S · L/T 조합으로 8가지 투자 유형 분류
-     * content 포맷 (줄 구분): {code}\n{name}\n{description}\n{profitScore}:{riskScore}:{longTermScore}
+     * STOCK_MBTI(V2): 성격 4축(EI/SN/TF/JP) + 투자 4축 → 일반 MBTI + 투자 MBTI 16유형.
+     * 산출 로직은 StockMbtiContentBuilder 순수 함수 참조.
      */
     private InsightResult buildStockMbti(String userId) {
         List<Map<String, Object>> surveyScores = surveyMapper.findRiskProfileScores(userId);
 
         if (surveyScores.isEmpty()) {
             log.info("[Insight] STOCK_MBTI - 설문 미완료 - userId: {}", userId);
-            return buildItem(userId, "STOCK_MBTI",
-                    "설문 미완료\n투자 MBTI 분석 불가\n투자 성향 설문을 완료하면 나만의 투자 MBTI를 확인할 수 있습니다.\n0:0:0");
+            return buildItem(userId, "STOCK_MBTI", StockMbtiContentBuilder.MISSING_CONTENT);
         }
 
         Map<String, Double> scoreMap = surveyScores.stream()
@@ -412,42 +417,10 @@ public class InsightServiceImpl implements InsightService {
                         m -> ((Number) m.get("score")).doubleValue(),
                         (a, b) -> a));
 
-        double profitScore   = scoreMap.getOrDefault("수익추구", 50.0);
-        double riskScore     = scoreMap.getOrDefault("리스크허용", 50.0);
-        double longTermScore = scoreMap.getOrDefault("장기투자", 50.0);
-
-        String g = profitScore   >= 50 ? "G" : "V";
-        String r = riskScore     >= 50 ? "R" : "S";
-        String l = longTermScore >= 50 ? "L" : "T";
-        String code = g + r + l;
-
-        String[] meta = getMbtiMeta(code);
-        String scores = String.format("%.0f:%.0f:%.0f", profitScore, riskScore, longTermScore);
-
-        log.info("[Insight] STOCK_MBTI - userId: {}, code: {}", userId, code);
-        return buildItem(userId, "STOCK_MBTI", code + "\n" + meta[0] + "\n" + meta[1] + "\n" + scores);
-    }
-
-    private String[] getMbtiMeta(String code) {
-        return switch (code) {
-            case "GRL" -> new String[]{"성장 개척자",
-                    "공격적인 수익 추구와 높은 리스크 감내력으로 장기 성장 자산에 집중합니다. 기술주·성장주에 과감하게 투자하며 시장 변동에도 장기 원칙을 고수하는 유형입니다."};
-            case "GRT" -> new String[]{"모멘텀 헌터",
-                    "높은 수익을 위해 적극적으로 시장 모멘텀을 활용합니다. 리스크를 감내하며 단기 트레이딩 기회를 포착하는 공격적인 트레이더입니다."};
-            case "GSL" -> new String[]{"균형 성장가",
-                    "수익성을 추구하되 리스크를 신중히 관리하며 장기적 안목으로 포트폴리오를 구성합니다. 성장성과 안정성의 균형을 추구하는 현명한 투자자입니다."};
-            case "GST" -> new String[]{"신중한 수익가",
-                    "수익 목표가 뚜렷하지만 리스크에 민감하며 단기 성과를 중시합니다. 안전마진을 확보하면서도 수익 기회를 놓치지 않으려는 유형입니다."};
-            case "VRL" -> new String[]{"가치 탐험가",
-                    "안정적 자산을 선호하면서도 과감한 리스크를 감수하며 장기 가치를 발굴합니다. 저평가 종목을 발굴해 오랜 기간 보유하는 역발상 가치 투자자입니다."};
-            case "VRT" -> new String[]{"역발상 트레이더",
-                    "시장의 반대 방향을 주목하며 단기 반전 기회를 포착합니다. 리스크를 감내하면서 역발상 투자로 알파를 창출하는 독자적인 스타일입니다."};
-            case "VSL" -> new String[]{"배당 수호자",
-                    "안정성을 최우선으로 리스크를 최소화하며 장기 배당 수익에 집중합니다. 꾸준한 현금흐름과 자산 보존을 중시하는 가장 안정적인 투자 성향입니다."};
-            case "VST" -> new String[]{"안전 수익가",
-                    "안정성과 자산 보존을 중시하며 단기 저위험 수익을 추구합니다. 급격한 시장 변동을 피하고 안전한 단기 투자 기회를 선호하는 유형입니다."};
-            default     -> new String[]{"분석 중", "투자 성향 데이터를 분석하는 중입니다."};
-        };
+        String content = StockMbtiContentBuilder.build(scoreMap);
+        log.info("[Insight] STOCK_MBTI - userId: {}, code: {}/{}",
+                userId, content.split("\n")[1], content.split("\n")[3]);
+        return buildItem(userId, "STOCK_MBTI", content);
     }
 
     private String generateInvestmentOpinion(Map<String, Double> scoreMap, double avgScore) {
