@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.investment.analyzer.market_analyzer.domain.repository.news.NewsMapper">
+
+    <!-- 가장 최근 시황 요약 1건 (market_summary는 collector 소유 테이블) -->
+    <select id="findLatestSummary" resultType="com.investment.analyzer.market_analyzer.domain.entity.news.MarketSummary">
+        SELECT summary_dt
+             , summary
+             , article_count
+             , created_at
+             , updated_at
+          FROM market_summary
+         ORDER BY summary_dt DESC
+         LIMIT 1
+    </select>
+
+    <!--
+        수집 윈도우가 자동(전날 22:00~06:00)과 수동 트리거(현재 기준 8시간)로 다르므로
+        전날 00:00 ~ 당일 24:00 이틀 범위로 두 경우 모두 커버 (스펙 2절)
+    -->
+    <select id="findArticlesForBriefing" resultType="com.investment.analyzer.market_analyzer.domain.entity.news.NewsArticle">
+        SELECT id
+             , title
+             , source
+             , url
+             , published_at
+          FROM news_article
+         WHERE published_at >= DATE_SUB(#{summaryDt}, INTERVAL 1 DAY)
+           AND published_at &lt; DATE_ADD(#{summaryDt}, INTERVAL 1 DAY)
+         ORDER BY published_at DESC
+         LIMIT 10
+    </select>
+
+</mapper>
