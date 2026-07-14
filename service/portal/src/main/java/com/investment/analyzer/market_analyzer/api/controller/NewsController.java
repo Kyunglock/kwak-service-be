@@ -19,7 +19,7 @@ public class NewsController {
     private final NewsService newsService;
 
     @Operation(summary = "시황 브리핑 조회",
-            description = "가장 최근 AI 시황 요약과 관련 뉴스 기사 목록(최대 10건). 요약이 없으면 data:null.")
+            description = "가장 최근 AI 시황 요약과 관련 뉴스 기사 목록(최대 5건). 요약이 없으면 data:null.")
     @GetMapping("/market-briefing")
     public ResponseEntity<?> getMarketBriefing() {
         return ResponseUtil.success(newsService.getMarketBriefing(), "시황 브리핑 조회 성공");

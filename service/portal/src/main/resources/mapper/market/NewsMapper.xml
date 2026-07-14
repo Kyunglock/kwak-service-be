@@ -30,7 +30,7 @@
          WHERE published_at >= DATE_SUB(#{summaryDt}, INTERVAL 1 DAY)
            AND published_at &lt; DATE_ADD(#{summaryDt}, INTERVAL 1 DAY)
          ORDER BY published_at DESC
-         LIMIT 10
+         LIMIT 5
     </select>
 
 </mapper>
