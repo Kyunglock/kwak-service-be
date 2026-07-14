@@ -215,7 +215,7 @@ public class InsightServiceImpl implements InsightService {
         for (StockInfo s : infoList) {
             String level;
             String reason;
-            if (s.peRatio() > 25 && riskTol < 50) {
+            if (s.peRatio() > 25 && riskTol < StockMbtiContentBuilder.AXIS_CUT) {
                 level = "낮음"; reason = "고PER 성장주로 안정 성향 대비 변동성이 큽니다.";
             } else if (s.peRatio() > 25) {
                 level = "보통"; reason = "성장주 특성으로 수익 성향과 부합하나 변동성에 유의하세요.";
@@ -230,7 +230,7 @@ public class InsightServiceImpl implements InsightService {
         }
         List<String> rebalance = new ArrayList<>();
         long growth = infoList.stream().filter(x -> x.peRatio() > 25).count();
-        if (riskTol < 50 && growth * 2 > infoList.size()) rebalance.add("고PER 성장주 비중을 줄이고 배당주로 안정성을 보강하세요.");
+        if (riskTol < StockMbtiContentBuilder.AXIS_CUT && growth * 2 > infoList.size()) rebalance.add("고PER 성장주 비중을 줄이고 배당주로 안정성을 보강하세요.");
         if (items.size() < 5) rebalance.add("보유 종목이 적습니다. 분산을 위해 5종목 이상을 권장합니다.");
         if (rebalance.isEmpty()) rebalance.add("현재 구성은 성향과 대체로 부합합니다. 정기 리밸런싱을 유지하세요.");
 
