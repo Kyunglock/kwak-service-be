@@ -41,7 +41,8 @@ public class AuthController {
      * 만료된 액세스 토큰을 들고 거의 동시에 들어온 요청들이 구 토큰으로 refresh를 시도해도
      * 이 시간 안에는 선점자가 만든 같은 새 토큰을 공유받는다.
      */
-    private static final long ROTATION_GRACE_MS = 60_000;
+    @Value("${jwt.rotation-grace:60000}")
+    private long rotationGraceMs;
 
     @PostMapping("/logout")
     @Operation(summary = "로그아웃", description = "JWT 토큰 무효화 및 쿠키 삭제")
@@ -101,7 +102,7 @@ public class AuthController {
         if (sessionId != null && remainingMs > 0) {
             // 활성 토큰 → 회전. SET NX 선점으로 동시 요청 중 한 건만 새 토큰을 만들고 나머지는 공유한다.
             String candidateNewId = jwtTokenProvider.generateRefreshTokenId();
-            if (redisTokenStore.tryClaimRotation(presentedTokenId, candidateNewId, ROTATION_GRACE_MS)) {
+            if (redisTokenStore.tryClaimRotation(presentedTokenId, candidateNewId, rotationGraceMs)) {
                 redisTokenStore.completeRotation(presentedTokenId, candidateNewId, sessionId, remainingMs);
                 activeRefreshTokenId = candidateNewId;
             } else {

@@ -33,8 +33,9 @@ spring:
 
 jwt:
   secret: ${JWT_SECRET}
-  expiration: 3600000 # 액세스 토큰 유효시간: 1시간
-  refresh-expiration: 604800000 # 리프레시 토큰 유효시간: 7일
+  expiration: ${JWT_EXPIRATION:3600000} # 액세스 토큰 유효시간: 1시간 (로컬 테스트 시 env로 단축 가능)
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000} # 리프레시 토큰 유효시간: 7일
+  rotation-grace: ${JWT_ROTATION_GRACE:60000} # 회전된 리프레시 토큰 유예시간: 60초
 
 ai:
   base-url: ${AI_URI:http://localhost:8090}
