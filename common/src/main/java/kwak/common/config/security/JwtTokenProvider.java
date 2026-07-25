@@ -2,7 +2,9 @@ package kwak.common.config.security;
 
 import kwak.common.infrastructure.token.RedisTokenStore;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -106,10 +108,21 @@ public class JwtTokenProvider {
 
     /**
      * 로그아웃 처리 (세션 삭제 + 블랙리스트 등록)
+     * 만료된 토큰이어도 세션 삭제는 수행해야 같은 세션의 다른 유효 토큰까지 무효화된다.
      */
     public void invalidateToken(String token) {
-        String sessionId = getSessionId(token);
-        long remainingMs = getRemainingExpiration(token);
+        Claims claims;
+        try {
+            claims = parseClaims(token);
+        } catch (ExpiredJwtException e) {
+            claims = e.getClaims();
+        } catch (JwtException | IllegalArgumentException e) {
+            log.warn("[JwtTokenProvider] 무효화 대상 토큰 파싱 실패: {}", e.getMessage());
+            return;
+        }
+
+        String sessionId = claims.getSubject();
+        long remainingMs = claims.getExpiration().getTime() - System.currentTimeMillis();
 
         redisTokenStore.deleteSession(sessionId);
         redisTokenStore.addToBlacklist(token, remainingMs);

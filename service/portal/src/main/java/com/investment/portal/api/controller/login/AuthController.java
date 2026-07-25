@@ -41,14 +41,19 @@ public class AuthController {
     public ResponseEntity<?> logout(
             @AuthenticationPrincipal String userId,
             HttpServletRequest request, HttpServletResponse response) {
+        // 만료된 액세스 토큰이어도 세션 삭제(즉시 무효화)는 수행되어야 한다
         String accessToken = resolveToken(request, "accessToken");
-        if (accessToken != null && jwtTokenProvider.validateToken(accessToken)) {
+        if (accessToken != null) {
             jwtTokenProvider.invalidateToken(accessToken);
         }
 
-        // 리프레시 토큰 Redis 삭제
+        // 리프레시 토큰 경유로도 세션 정리 (액세스 토큰이 없거나 파싱 불가한 경우 대비)
         String refreshToken = resolveToken(request, "refreshToken");
         if (refreshToken != null) {
+            String sessionId = redisTokenStore.getSessionIdByRefreshToken(refreshToken);
+            if (sessionId != null) {
+                redisTokenStore.deleteSession(sessionId);
+            }
             redisTokenStore.deleteRefreshToken(refreshToken);
         }
 
