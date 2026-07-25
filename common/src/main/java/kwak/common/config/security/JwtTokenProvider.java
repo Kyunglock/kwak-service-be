@@ -125,6 +125,7 @@ public class JwtTokenProvider {
         long remainingMs = claims.getExpiration().getTime() - System.currentTimeMillis();
 
         redisTokenStore.deleteSession(sessionId);
+        redisTokenStore.revokeRefreshTokensBySession(sessionId);
         redisTokenStore.addToBlacklist(token, remainingMs);
 
         log.info("[JwtTokenProvider] 토큰 무효화 - sessionId: {}", sessionId);

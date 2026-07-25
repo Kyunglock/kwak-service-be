@@ -22,4 +22,10 @@ public record LoginResponse(
         @Schema(description = "신규 사용자 여부", example = "false")
         boolean isNewUser
 ) {
+    /**
+     * HTTP 응답 body용. 리프레시 토큰은 httpOnly 쿠키로만 전달하고 body에서는 제외한다 (XSS 노출 방지).
+     */
+    public LoginResponse withoutRefreshToken() {
+        return new LoginResponse(accessToken, null, userId, email, nickname, isNewUser);
+    }
 }
