@@ -151,7 +151,7 @@ public class JwtGlobalFilter implements GlobalFilter, Ordered {
                     }
 
                     log.debug("[JwtGlobalFilter] 토큰 갱신 완료 - sessionId: {}", newClaims.getSubject());
-                    return proceed(exchange, chain, newClaims.getSubject());
+                    return proceed(exchange, chain, newClaims.getSubject(), newToken);
                 })
                 .switchIfEmpty(Mono.defer(() -> {
                     log.warn("[JwtGlobalFilter] 포털 응답 없음 - path: {}", path);
@@ -167,8 +167,24 @@ public class JwtGlobalFilter implements GlobalFilter, Ordered {
      * 인증 통과: X-User-Session-Id 헤더를 붙여 하위 서비스로 전달
      */
     private Mono<Void> proceed(ServerWebExchange exchange, GatewayFilterChain chain, String sessionId) {
+        return proceed(exchange, chain, sessionId, null);
+    }
+
+    /**
+     * 인증 통과: X-User-Session-Id 헤더를 붙여 하위 서비스로 전달.
+     * 리프레시로 새 액세스 토큰을 받은 경우, 만료된 원본 토큰 대신 새 토큰을
+     * Authorization 헤더로 실어 하위 서비스 인증이 통과되도록 한다.
+     * (portal 필터는 Authorization 헤더를 쿠키보다 우선 확인한다)
+     */
+    private Mono<Void> proceed(ServerWebExchange exchange, GatewayFilterChain chain,
+                               String sessionId, String newAccessToken) {
         ServerHttpRequest mutated = exchange.getRequest().mutate()
                 .header(SESSION_ID_HEADER, sessionId)
+                .headers(headers -> {
+                    if (newAccessToken != null) {
+                        headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + newAccessToken);
+                    }
+                })
                 .build();
         return chain.filter(exchange.mutate().request(mutated).build());
     }

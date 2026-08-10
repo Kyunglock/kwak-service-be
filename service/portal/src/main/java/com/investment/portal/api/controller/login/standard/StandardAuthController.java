@@ -51,12 +51,12 @@ public class StandardAuthController {
                 .sameSite("Lax")
                 .build();
 
-        // 리프레시 토큰 쿠키 (7일)
+        // 리프레시 토큰 쿠키 (7일, XSS 방어를 위해 httpOnly)
         ResponseCookie refreshCookie = ResponseCookie
                 .from("refreshToken", loginResponse.refreshToken())
                 .maxAge(7 * 24 * 60 * 60)
                 .path("/")
-                .httpOnly(false)
+                .httpOnly(true)
                 .secure(cookieSecure)
                 .sameSite("Lax")
                 .build();
@@ -67,6 +67,6 @@ public class StandardAuthController {
         eventPublisher.publishEvent(ActivityEvent.of(
                 loginResponse.userId(), "LOGIN", "AUTH", "STANDARD", "일반 로그인"));
 
-        return ResponseUtil.success(loginResponse);
+        return ResponseUtil.success(loginResponse.withoutRefreshToken());
     }
 }
