@@ -123,7 +123,9 @@
                     ) R
             ON S.SURVEY_ID = R.SURVEY_ID
         WHERE S.USE_YN = 'Y'
-        ORDER BY S.REG_DT DESC
+        <!-- 투자 MBTI(RISK_PROFILE) 설문은 상시 설문이므로 항상 최상단 고정 -->
+        ORDER BY CASE WHEN S.SURVEY_TYPE_CODE = 'RISK_PROFILE' THEN 0 ELSE 1 END
+               , S.REG_DT DESC
     </select>
 
     <select id="countSurveyWithMyResponses" resultType="int">
@@ -176,7 +178,9 @@
            AND (S.SURVEY_NAME LIKE CONCAT('%', #{keyword}, '%')
              OR S.DESCRIPTION LIKE CONCAT('%', #{keyword}, '%'))
         </if>
-        ORDER BY ${orderBy} ${orderDir}
+        <!-- 투자 MBTI(RISK_PROFILE) 설문은 상시 설문이므로 뉴스 설문에 밀리지 않도록 항상 첫 페이지 최상단 고정 -->
+        ORDER BY CASE WHEN S.SURVEY_TYPE_CODE = 'RISK_PROFILE' THEN 0 ELSE 1 END
+               , ${orderBy} ${orderDir}
         LIMIT #{size} OFFSET #{offset}
     </select>
 
