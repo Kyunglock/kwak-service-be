@@ -1,0 +1,54 @@
+# n8n — AI/수집 워크플로우 오케스트레이터
+#
+# 실행: docker compose -f docker-compose.n8n.yml up -d
+#
+# 설계 원칙: n8n은 MySQL에 직접 붙지 않고 collector의 내부 HTTP API(X-System-Key)로만
+# 접근합니다. 테이블 소유자를 하나로 유지해야 스키마 변경 때 조용히 깨지는 쪽이 안 생깁니다.
+#
+# 저장소는 SQLite(기본)입니다. 워크플로우가 5개를 넘거나 실행 이력이 무거워지면
+# 그때 Postgres로 옮기세요 — 지금 단계에 컨테이너를 하나 더 두는 건 과합니다.
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: kwak-n8n
+    ports:
+      - "5678:5678"
+    environment:
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}   # 반드시 고정·백업. 바뀌면 저장된 credential 복호화 불가
+      N8N_HOST: ${N8N_HOST:-localhost}
+      N8N_PORT: "5678"
+      N8N_PROTOCOL: ${N8N_PROTOCOL:-http}
+      WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://localhost:5678/}
+      N8N_SECURE_COOKIE: "false"                  # HTTPS 리버스 프록시를 붙이면 이 줄을 지우세요
+
+      N8N_RUNNERS_ENABLED: "true"
+      GENERIC_TIMEZONE: Asia/Seoul
+      TZ: Asia/Seoul
+
+      # 실행 이력 정리 — 안 하면 SQLite 파일이 계속 커집니다 (168시간 = 7일)
+      EXECUTIONS_DATA_PRUNE: "true"
+      EXECUTIONS_DATA_MAX_AGE: "168"
+
+      # 워크플로우가 $env 로 참조하는 값들
+      COLLECTOR_URI: ${COLLECTOR_URI:-http://host.docker.internal:8000}
+      SYSTEM_API_KEY: ${SYSTEM_API_KEY}
+      FRED_API_KEY: ${FRED_API_KEY}
+      FRED_START_DATE: ${FRED_START_DATE:-2015-01-01}
+    volumes:
+      - n8n_data:/home/node/.n8n
+      # 워크플로우 JSON을 컨테이너에서 바로 임포트할 수 있게 마운트 (읽기 전용)
+      - ./n8n/workflows:/workflows:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    networks:
+      - external_net
+
+volumes:
+  n8n_data:
+
+networks:
+  # collector/docker-compose.yml 과 같은 네트워크. 같이 띄우면 http://api:8000 으로 접근됩니다.
+  external_net:
+    external: true
+    name: desktop_default

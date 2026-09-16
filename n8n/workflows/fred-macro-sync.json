@@ -1,0 +1,173 @@
+{
+  "name": "fred-macro-sync",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      },
+      "id": "b2000000-0000-4000-8000-000000000001",
+      "name": "매일 07시",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// 수집 대상 시리즈. collector/macro/store.py 의 KNOWN_SERIES 와 맞춰야 한다\n// (목록에 없는 시리즈를 보내면 내부 API가 400으로 거절한다).\nconst series = [\n  { seriesId: 'DFF',      label: '연방기금금리(실효, 일별)' },\n  { seriesId: 'DGS10',    label: '미국 국채 10년물(일별)' },\n  { seriesId: 'DGS2',     label: '미국 국채 2년물(일별)' },\n  { seriesId: 'CPIAUCSL', label: '소비자물가지수(월별)' },\n  { seriesId: 'UNRATE',   label: '실업률(월별)' },\n];\nreturn series.map((s) => ({ json: s }));\n"
+      },
+      "id": "b2000000-0000-4000-8000-000000000002",
+      "name": "시리즈 목록",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.stlouisfed.org/fred/series/observations",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "series_id",
+              "value": "={{ $json.seriesId }}"
+            },
+            {
+              "name": "api_key",
+              "value": "={{ $env.FRED_API_KEY }}"
+            },
+            {
+              "name": "file_type",
+              "value": "json"
+            },
+            {
+              "name": "observation_start",
+              "value": "={{ $env.FRED_START_DATE || '2015-01-01' }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "b2000000-0000-4000-8000-000000000003",
+      "name": "FRED 조회",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// FRED 응답을 내부 API가 받는 형태로 바꾸고, 한 번에 보낼 수 있는 크기로 쪼갠다.\n// 내부 API 상한은 5000건이라 여유를 두고 2000건씩 나눈다.\nconst CHUNK = 2000;\nconst requested = $('시리즈 목록').all();\nconst out = [];\n\n$input.all().forEach((item, i) => {\n  const seriesId = requested[i]?.json?.seriesId;\n  const observations = item.json?.observations ?? [];\n\n  if (!seriesId) {\n    throw new Error(`시리즈 매칭 실패 (index=${i}) — 앞 노드의 아이템 수가 어긋났습니다`);\n  }\n  if (observations.length === 0) {\n    return; // 새 관측치 없음 — 보낼 것도 없다\n  }\n\n  for (let start = 0; start < observations.length; start += CHUNK) {\n    out.push({\n      json: {\n        seriesId,\n        observations: observations\n          .slice(start, start + CHUNK)\n          .map((o) => ({ date: o.date, value: o.value })),\n      },\n    });\n  }\n});\n\nreturn out;\n"
+      },
+      "id": "b2000000-0000-4000-8000-000000000004",
+      "name": "관측치 변환·분할",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.COLLECTOR_URI }}/internal/macro/observations",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-System-Key",
+              "value": "={{ $env.SYSTEM_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "b2000000-0000-4000-8000-000000000005",
+      "name": "거시지표 저장",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "매일 07시": {
+      "main": [
+        [
+          {
+            "node": "시리즈 목록",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "시리즈 목록": {
+      "main": [
+        [
+          {
+            "node": "FRED 조회",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FRED 조회": {
+      "main": [
+        [
+          {
+            "node": "관측치 변환·분할",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "관측치 변환·분할": {
+      "main": [
+        [
+          {
+            "node": "거시지표 저장",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all"
+  },
+  "pinData": {}
+}
