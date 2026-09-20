@@ -18,9 +18,13 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PortfolioServiceImpl implements PortfolioService {
 
+    /** 가입 직후 자동으로 만들어 주는 포트폴리오 이름 */
+    static final String DEFAULT_PORTFOLIO_NM = "내 포트폴리오";
+
     private final PortfolioMapper portfolioMapper;
     private final PortfolioItemMapper portfolioItemMapper;
     private final TransactionHistoryService transactionHistoryService;
+    private final DefaultPortfolioGuard defaultPortfolioGuard;
 
     @Override
     public PortfolioResponse getPortfolio(Long portfolioId) {
@@ -38,9 +42,36 @@ public class PortfolioServiceImpl implements PortfolioService {
                 .toList();
     }
 
+    /**
+     * 내 포트폴리오 목록. 하나도 없으면 기본 포트폴리오를 만들어 함께 반환한다.
+     *
+     * <p>포트폴리오가 없으면 매매 기록을 어디에도 담을 수 없어, 사용자가 무엇을 하든
+     * "먼저 포트폴리오를 만드세요"에서 막힌다. 첫 화면에서 요구할 만한 설정이 아니다.
+     */
     @Override
     public List<PortfolioResponse> getMyPortfolios(String userId) {
-        return getPortfoliosByUserId(userId);
+        List<PortfolioResponse> portfolios = getPortfoliosByUserId(userId);
+        return portfolios.isEmpty() ? createDefaultPortfolio(userId) : portfolios;
+    }
+
+    private List<PortfolioResponse> createDefaultPortfolio(String userId) {
+        if (!defaultPortfolioGuard.tryAcquire(userId)) {
+            // 다른 요청이 만드는 중 — 중복 생성 대신 현재 상태를 그대로 돌려준다.
+            // 아직 안 보이더라도 다음 조회에서 잡힌다.
+            return getPortfoliosByUserId(userId);
+        }
+        try {
+            // 락을 기다리는 사이에 만들어졌을 수 있다
+            List<PortfolioResponse> existing = getPortfoliosByUserId(userId);
+            if (!existing.isEmpty()) {
+                return existing;
+            }
+            addPortfolio(userId, new PortfolioAddRequest(DEFAULT_PORTFOLIO_NM, null, "USD"));
+            log.info("[Portfolio] 기본 포트폴리오 자동 생성 - userId: {}", userId);
+            return getPortfoliosByUserId(userId);
+        } finally {
+            defaultPortfolioGuard.release(userId);
+        }
     }
 
     @Override
@@ -91,6 +122,8 @@ public class PortfolioServiceImpl implements PortfolioService {
 
     @Override
     public PortfolioDashboardResponse getDashboard(String userId) {
+        // getMyPortfolios 가 비어 있으면 기본 포트폴리오를 만들어 준다.
+        // 그래도 비어 있는 경우는 동시 생성 경합뿐이며, 다음 조회에서 정상화된다.
         List<PortfolioResponse> portfolios = getMyPortfolios(userId);
         if (portfolios.isEmpty()) {
             return new PortfolioDashboardResponse(portfolios, null, List.of(), List.of());
