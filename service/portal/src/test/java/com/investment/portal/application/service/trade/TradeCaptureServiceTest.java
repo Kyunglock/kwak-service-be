@@ -172,7 +172,7 @@ class TradeCaptureServiceTest {
     }
 
     @Test
-    void 날짜가_없으면_오늘로_채우되_확인_문구를_남긴다() {
+    void 날짜가_없으면_말없이_오늘로_채운다() {
         aiReturns("""
                 {"trades":[{"name":"애플","ticker":"AAPL","type":"BUY","qty":3,"price":230,"date":null}]}
                 """);
@@ -182,11 +182,12 @@ class TradeCaptureServiceTest {
 
         assertThat(item.status()).isEqualTo("READY");
         assertThat(item.transDt()).isEqualTo(TODAY);
-        assertThat(item.issue()).contains("오늘");
+        // 날짜까지 또박또박 적는 사용자는 드물다 — 확인을 요구하지 않는다
+        assertThat(item.issue()).isNull();
     }
 
     @Test
-    void 미래_날짜는_확정_불가로_표시된다() {
+    void 미래_날짜로_읽히면_오늘로_맞춘다() {
         aiReturns("""
                 {"trades":[{"name":"애플","ticker":"AAPL","type":"BUY","qty":3,"price":230,"date":"%s"}]}
                 """.formatted(TODAY.plusDays(3)));
@@ -194,8 +195,22 @@ class TradeCaptureServiceTest {
 
         TradeDraftItem item = service.captureText(USER, textRequest("애플")).items().get(0);
 
-        assertThat(item.status()).isEqualTo("NEEDS_INPUT");
-        assertThat(item.issue()).contains("미래");
+        assertThat(item.status()).isEqualTo("READY");
+        assertThat(item.transDt()).isEqualTo(TODAY);
+        assertThat(item.issue()).isNull();
+    }
+
+    @Test
+    void 과거_날짜는_그대로_쓴다() {
+        aiReturns("""
+                {"trades":[{"name":"애플","ticker":"AAPL","type":"BUY","qty":3,"price":230,"date":"%s"}]}
+                """.formatted(TODAY.minusDays(5)));
+        resolves("AAPL", "Apple Inc.");
+
+        TradeDraftItem item = service.captureText(USER, textRequest("지난주에 애플 샀어")).items().get(0);
+
+        assertThat(item.transDt()).isEqualTo(TODAY.minusDays(5));
+        assertThat(item.status()).isEqualTo("READY");
     }
 
     @Test
@@ -351,6 +366,7 @@ class TradeCaptureServiceTest {
         verifyNoInteractions(transactionHistoryService);
     }
 
+    /** 초안은 더 이상 미래 날짜를 만들지 않지만, 손으로 만든 요청은 여전히 막아야 한다. */
     @Test
     void 확정_시점에도_수량_단가_날짜를_다시_검증한다() {
         draftExists("draft-1", USER, PORTFOLIO_ID);
