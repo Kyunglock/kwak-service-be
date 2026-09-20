@@ -123,12 +123,20 @@ public class TradeCaptureServiceImpl implements TradeCaptureService {
         String stockCd = resolution.stockCd();
         BigDecimal qty = trade.qty();
         BigDecimal price = trade.price();
-        LocalDate transDt = trade.date();
         String currency = trade.currency() != null ? trade.currency() : defaultCurrency(stockCd);
+
+        // 날짜는 사용자를 붙잡지 않는다. 대부분 "애플 10주 샀어" 정도로만 말하고,
+        // 날짜까지 또박또박 적어주길 기대하는 편이 비현실적이다.
+        // 없으면 오늘, 미래로 읽혔으면(거의 오독이다) 오늘로 맞춘다.
+        // 값은 화면에 그대로 보이고 수정할 수 있으니 굳이 확인을 요구하지 않는다.
+        LocalDate transDt = (trade.date() == null || trade.date().isAfter(today))
+                ? today : trade.date();
 
         String status;
         String issue;
 
+        // 남기는 확인 요청은 "서버가 대신 채울 수 없는 것"뿐이다.
+        // 종목·수량·단가를 추측해 채우면 사용자 기록이 조용히 틀어진다.
         if (stockCd == null) {
             status = "NEEDS_STOCK";
             issue = candidates.isEmpty()
@@ -140,14 +148,6 @@ public class TradeCaptureServiceImpl implements TradeCaptureService {
         } else if (price == null || price.signum() <= 0) {
             status = "NEEDS_INPUT";
             issue = "단가를 읽지 못했습니다. 직접 입력해 주세요.";
-        } else if (transDt != null && transDt.isAfter(today)) {
-            status = "NEEDS_INPUT";
-            issue = "거래일이 미래(" + transDt + ")로 읽혔습니다. 확인해 주세요.";
-        } else if (transDt == null) {
-            // 날짜만 없는 경우는 오늘로 채우고 확정 가능하게 둔다 — 화면에서 바로 고칠 수 있다
-            transDt = today;
-            status = "READY";
-            issue = "날짜를 찾지 못해 오늘(" + today + ")로 넣었습니다. 맞는지 확인해 주세요.";
         } else {
             status = "READY";
             issue = null;
