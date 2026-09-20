@@ -5,7 +5,9 @@ import com.investment.portal.domain.repository.stock.StockResolveMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -62,8 +64,8 @@ public class StockResolver {
             return nameAsTicker;
         }
 
-        // 3) 종목명 정확 일치. 동명이의면 사용자가 고르게 한다
-        List<StockRef> exact = stockResolveMapper.findByExactName(upper);
+        // 3) 종목명 정확 일치. 진짜 동명이의일 때만 사용자가 고르게 한다
+        List<StockRef> exact = distinctByTicker(stockResolveMapper.findByExactName(upper));
         if (exact.size() == 1) {
             StockRef ref = exact.get(0);
             return Resolution.resolved(ref.stockCd(), ref.stockNm());
@@ -74,7 +76,28 @@ public class StockResolver {
 
         // 4) 부분 일치는 후보 제시까지만 — 자동 선택하지 않는다.
         //    "삼성"으로 삼성전자를 자동 선택하면 삼성SDI를 산 사람의 기록이 조용히 틀어진다.
-        return Resolution.unresolved(stockResolveMapper.findByPartialName(upper, MAX_CANDIDATES));
+        return Resolution.unresolved(
+                distinctByTicker(stockResolveMapper.findByPartialName(upper, MAX_CANDIDATES)));
+    }
+
+    /**
+     * 같은 티커를 가리키는 행을 하나로 합친다.
+     *
+     * <p>조회는 tbl_companies(영문·한글명)와 tbl_stock_info(종목명)를 UNION 하므로,
+     * "애플"처럼 양쪽에 다 있는 종목은 이름만 다른 같은 티커가 여러 줄로 돌아온다.
+     * 합치지 않으면 후보가 하나뿐인데도 동명이의로 보고 사용자에게 고르라고 묻게 된다.
+     *
+     * <p>이름은 먼저 나온 것을 쓴다 — 조회 순서상 tbl_companies 쪽이 앞서고,
+     * 그쪽이 표시용으로 더 정확하다.
+     */
+    private List<StockRef> distinctByTicker(List<StockRef> refs) {
+        Map<String, StockRef> byTicker = new LinkedHashMap<>();
+        for (StockRef ref : refs) {
+            if (ref != null && ref.stockCd() != null) {
+                byTicker.putIfAbsent(ref.stockCd(), ref);
+            }
+        }
+        return List.copyOf(byTicker.values());
     }
 
     /** 티커 후보를 DB에서 검증. 확정되면 Resolution, 아니면 null. */
