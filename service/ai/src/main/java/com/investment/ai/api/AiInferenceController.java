@@ -24,4 +24,11 @@ public class AiInferenceController {
         OpenAiClient.ChatResponse r = openAiClient.chat(req.system(), req.user());
         return new ChatResponse(r.content(), r.promptTokens(), r.completionTokens());
     }
+
+    /** 이미지 + 텍스트 추론 (증권사 앱 스크린샷에서 매매내역 추출 등). */
+    @PostMapping("/openai/vision")
+    public ChatResponse openaiVision(@RequestBody VisionRequest req) {
+        OpenAiClient.ChatResponse r = openAiClient.vision(req.system(), req.user(), req.images());
+        return new ChatResponse(r.content(), r.promptTokens(), r.completionTokens());
+    }
 }

@@ -9,5 +9,7 @@ kwakai:
   base-url: ${KWAKAI_BASE_URL:http://192.168.0.16:8000/v1}
   model: ${KWAKAI_MODEL:gemma4-31b}
 openai:
+  # 비전(이미지) 추론을 쓰므로 멀티모달 지원 모델이어야 한다
+  model: ${OPENAI_MODEL:gpt-4o}
   base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
   api-key: ${OPENAI_API_KEY:dummy}
