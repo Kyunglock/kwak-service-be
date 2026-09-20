@@ -35,8 +35,7 @@ inv-back - 멀티모듈 Gradle, Java 21, Spring Boot 3.5.9
 │   └── com.investment.analyzer      시장 통계, 배당 히스토리, 뉴스, 스케줄러
 │
 └── service/ai/                  AI 추론 게이트웨이 앱 (포트 8090, 내부 전용)
-    ├── kwakai/                  로컬 LLM(vLLM) 클라이언트 — gemma4-31b
-    ├── openai/                  OpenAI 클라이언트
+    ├── kwakai/                  로컬 LLM(vLLM) 클라이언트 — gemma4-31b (텍스트·이미지)
     └── config/                  X-System-Key 인증 (SystemKeyInterceptor)
 ```
 
@@ -60,8 +59,8 @@ inv-back - 멀티모듈 Gradle, Java 21, Spring Boot 3.5.9
       MySQL      Redis      Kafka      Finnhub   ┌──────▼──────┐
       (주 DB)  (세션/캐시) (:9092,     (주가 API) │   ai-app     │
                            인사이트)              └──┬───────┬──┘
-                                                    │       │
-                                              vLLM(로컬 LLM)  OpenAI API
+                                                    │
+                                              vLLM(로컬 LLM)
                                               gemma4-31b
 ```
 
@@ -137,16 +136,18 @@ config/             - Bean 설정, 예외 처리
 
 ## AI 앱 (service/ai)
 
-core에서 AI 추론을 분리한 내부 전용 앱. LLM 벤더 교체/장애가 core에 전파되지 않도록 격리한다.
+core에서 AI 추론을 분리한 내부 전용 앱. 모델 교체/장애가 core에 전파되지 않도록 격리한다.
+추론은 전부 로컬 LLM(kwakai)으로 간다 — 외부 LLM 벤더 연동은 두지 않는다.
 
 | 항목     | 내용                                                        |
 | -------- | ----------------------------------------------------------- |
 | 포트     | 8090 (외부 비노출)                                          |
 | 인증     | `X-System-Key` 헤더 (SystemKeyInterceptor, `SYSTEM_API_KEY`) |
-| 엔드포인트 | `POST /api/v1/ai/kwakai/generate` — 로컬 LLM 텍스트 생성  |
-|          | `POST /api/v1/ai/openai/chat` — OpenAI 챗 (토큰 수 반환)    |
+| 엔드포인트 | `POST /api/v1/ai/kwakai/generate` — 텍스트 생성 (실패 시 null) |
+|          | `POST /api/v1/ai/chat` — 구조화 응답 + 토큰 수                |
+|          | `POST /api/v1/ai/vision` — 이미지+텍스트 추론                 |
 | 로컬 LLM | vLLM 서버 (`KWAKAI_BASE_URL`, 기본 192.168.0.16:8000/v1), 모델 `gemma4-31b` |
-| OpenAI   | `OPENAI_API_KEY` (미설정 시 `dummy` — 부팅 실패 방지용 의도된 값) |
+| 이미지   | `KWAKAI_VISION_MODEL` (비우면 기본 모델). 멀티모달 모델이어야 동작한다 |
 
 core 쪽 호출부는 common의 `AiGatewayClient` 하나로 통일되어 있다 (`ai.base-url` = `${AI_URI:http://localhost:8090}`).
 
@@ -288,7 +289,8 @@ Caffeine 주가 캐시: 최대 5,000 종목, TTL 6시간 (Finnhub API 응답 보
 | `AI_URI`                                 | core        | ai-app 주소 (기본 http://localhost:8090)  |
 | `CORE_URI`                               | gateway     | core 주소 (기본 http://localhost:8080)    |
 | `KWAKAI_BASE_URL`, `KWAKAI_MODEL`        | ai          | vLLM 서버 주소·모델 (기본 gemma4-31b)     |
-| `OPENAI_API_KEY`                         | ai          | OpenAI (미설정 시 dummy)                  |
+| `KWAKAI_VISION_MODEL`                    | ai          | 이미지 추론 모델 (비우면 KWAKAI_MODEL)    |
+| `KWAKAI_JSON_MODE`                       | ai          | vLLM guided decoding 사용 (기본 false)    |
 | `AUTH_COOKIE_SECURE`                     | core        | JWT 쿠키 Secure 플래그 (HTTPS 배포 시 true) |
 
 ### 실행
@@ -335,7 +337,7 @@ SPRING_PROFILES_ACTIVE=prod java -jar portal.jar
 | DB          | MySQL                                      |
 | Cache       | Redis (세션·상태) + Caffeine (주가)        |
 | Messaging   | Kafka (KRaft, 인사이트 비동기 빌드)        |
-| AI          | vLLM 로컬 LLM (gemma4-31b) + OpenAI, Spring AI BOM |
+| AI          | vLLM 로컬 LLM (gemma4-31b) — 텍스트·이미지  |
 | Auth        | JWT (Access 1h + Refresh 7d) + 카카오/네이버 OAuth |
 | Mapping     | MapStruct                                  |
 | API Docs    | SpringDoc OpenAPI — `http://localhost:8080/swagger` |

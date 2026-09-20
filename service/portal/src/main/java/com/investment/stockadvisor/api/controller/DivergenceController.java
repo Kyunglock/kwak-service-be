@@ -41,7 +41,7 @@ public class DivergenceController {
     }
 
     @Operation(summary = "종목별 Divergence LLM 해석 조회",
-               description = "OpenAI 해석 결과를 조회합니다. Redis 캐시 히트 시 cached=true")
+               description = "AI 해석 결과를 조회합니다. Redis 캐시 히트 시 cached=true")
     @ApiResponses(@ApiResponse(responseCode = "200", description = "조회 성공"))
     @GetMapping("/stocks/{stockCd}/interpretations")
     public ResponseEntity<?> interpretByStockCd(@PathVariable String stockCd) {

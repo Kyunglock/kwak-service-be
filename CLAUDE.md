@@ -15,7 +15,7 @@ inv-back/
 └── service/
     ├── api-gateway/         # Spring Cloud Gateway (WebFlux), 포트 9000
     ├── portal/              # core 서비스 — 아래 4개 도메인 패키지 통합, 포트 8080
-    └── ai/                  # AI 추론 서버 (kwakai 로컬 LLM + OpenAI 프록시), 포트 8090
+    └── ai/                  # AI 추론 서버 (kwakai 로컬 LLM 전용), 포트 8090
 ```
 
 ### portal 내 도메인 패키지 (`com.investment.*`)
@@ -60,8 +60,9 @@ stockadvisor/    # 괴리율(Divergence), 구루 포트폴리오/최근활동, �
 - `CORE_URI` — api-gateway → core(portal) 주소
 - `AI_URI` — core → ai 모듈 주소
 - `SYSTEM_API_KEY` — core ↔ ai 내부 인증(X-System-Key) 및 뉴스 크롤러 연동 키
-- `KWAKAI_BASE_URL`, `KWAKAI_MODEL` — ai 모듈의 로컬 LLM
-- `OPENAI_API_KEY`, `OPENAI_BASE_URL` — OpenAI (ai 모듈)
+- `KWAKAI_BASE_URL`, `KWAKAI_MODEL` — ai 모듈의 로컬 LLM (모든 추론이 여기로 간다)
+- `KWAKAI_VISION_MODEL` — 이미지 추론용 모델 (비우면 `KWAKAI_MODEL` 사용, 멀티모달 필요)
+- `KWAKAI_JSON_MODE` — vLLM guided decoding 사용 여부 (기본 false)
 - `FINNHUB_API_KEY` — 실시간 주가 (portal)
 - `AUTH_COOKIE_SECURE` — JWT 쿠키 Secure 플래그 (로컬 false, HTTPS 배포 시 true)
 
@@ -77,7 +78,7 @@ application/
 domain/
   entity/           - DB 엔티티
   repository/       - MyBatis 매퍼 인터페이스
-infrastructure/     - 외부 연동 (OpenAI, Finnhub 등)
+infrastructure/     - 외부 연동 (Finnhub, ai 모듈 등)
 config/             - Bean 설정
 ```
 
@@ -111,5 +112,6 @@ config/             - Bean 설정
 - `common` 모듈 변경 시 모든 서비스에 영향을 줍니다.
 - api-gateway는 WebFlux 기반이므로 다른 모듈(MVC)과 설정 방식이 다릅니다.
 - MyBatis `mapper-locations`는 반드시 `classpath*:` (별표)를 유지해야 합니다 — 병합된 구조에서 라이브러리 모듈의 매퍼 XML까지 스캔하기 위함입니다.
-- ai 모듈의 `OPENAI_API_KEY` 기본값 `dummy`는 부팅 실패 방지용 의도된 더미값입니다.
+- AI 추론은 전부 로컬 LLM(kwakai)으로 갑니다. 외부 LLM 벤더 연동은 두지 않습니다.
+- 이미지 추출(매매내역 화면 캡처)은 `KWAKAI_VISION_MODEL`이 멀티모달일 때만 동작합니다.
 - `dump-invdb.sql`은 gitignore에 포함되어 있습니다.

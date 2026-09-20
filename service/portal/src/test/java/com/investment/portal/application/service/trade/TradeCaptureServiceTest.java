@@ -64,9 +64,9 @@ class TradeCaptureServiceTest {
     }
 
     private void aiReturns(String json) {
-        when(aiGatewayClient.openaiChat(anyString(), anyString()))
+        when(aiGatewayClient.chat(anyString(), anyString()))
                 .thenReturn(new AiGatewayClient.ChatResponse(json, 0, 0));
-        when(aiGatewayClient.openaiVision(anyString(), anyString(), anyList()))
+        when(aiGatewayClient.vision(anyString(), anyString(), anyList()))
                 .thenReturn(new AiGatewayClient.ChatResponse(json, 0, 0));
     }
 
@@ -221,7 +221,7 @@ class TradeCaptureServiceTest {
 
     @Test
     void AI_호출_실패는_재시도_안내로_바뀐다() {
-        when(aiGatewayClient.openaiChat(anyString(), anyString()))
+        when(aiGatewayClient.chat(anyString(), anyString()))
                 .thenThrow(new RuntimeException("connection reset"));
 
         assertThatThrownBy(() -> service.captureText(USER, textRequest("애플 1주")))
@@ -274,7 +274,7 @@ class TradeCaptureServiceTest {
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<AiGatewayClient.ImagePart>> captor = ArgumentCaptor.forClass(List.class);
-        verify(aiGatewayClient).openaiVision(anyString(), anyString(), captor.capture());
+        verify(aiGatewayClient).vision(anyString(), anyString(), captor.capture());
         assertThat(captor.getValue()).hasSize(1);
         assertThat(captor.getValue().get(0).mimeType()).isEqualTo("image/png");
         assertThat(captor.getValue().get(0).base64()).isEqualTo("AQIDBA==");

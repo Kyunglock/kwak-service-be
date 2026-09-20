@@ -58,7 +58,7 @@ public class TradeCaptureServiceImpl implements TradeCaptureService {
         requireOwnedPortfolio(userId, request.portfolioId());
 
         String content = callLlm(
-                () -> aiGatewayClient.openaiChat(
+                () -> aiGatewayClient.chat(
                         TradeExtractionPrompt.SYSTEM,
                         TradeExtractionPrompt.TEXT_USER_PREFIX + request.text()));
 
@@ -71,7 +71,7 @@ public class TradeCaptureServiceImpl implements TradeCaptureService {
         AiGatewayClient.ImagePart part = toImagePart(image);
 
         String content = callLlm(
-                () -> aiGatewayClient.openaiVision(
+                () -> aiGatewayClient.vision(
                         TradeExtractionPrompt.SYSTEM,
                         TradeExtractionPrompt.IMAGE_USER,
                         List.of(part)));

@@ -48,8 +48,8 @@ public class DivergenceInterpretationServiceImpl implements DivergenceInterpreta
         }
 
         try {
-            AiGatewayClient.ChatResponse chatResponse = aiGatewayClient.openaiChat(SYSTEM_PROMPT, buildUserPrompt(result));
-            log.info("[OpenAI] stockCd={} type={} prompt_tokens={} completion_tokens={}",
+            AiGatewayClient.ChatResponse chatResponse = aiGatewayClient.chat(SYSTEM_PROMPT, buildUserPrompt(result));
+            log.info("[AI] stockCd={} type={} prompt_tokens={} completion_tokens={}",
                     result.getStockCd(), result.getDivergenceType(),
                     chatResponse.promptTokens(), chatResponse.completionTokens());
 
@@ -57,7 +57,7 @@ public class DivergenceInterpretationServiceImpl implements DivergenceInterpreta
             stringRedisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(response), CACHE_TTL);
             return response;
         } catch (Exception e) {
-            log.error("[OpenAI] interpretation failed stockCd={} type={}: {}",
+            log.error("[AI] interpretation failed stockCd={} type={}: {}",
                     result.getStockCd(), result.getDivergenceType(), e.getMessage());
             throw new RuntimeException("Failed to interpret divergence result", e);
         }
