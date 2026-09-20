@@ -69,6 +69,39 @@ class StockResolverTest {
     }
 
     @Test
+    void 같은_티커가_여러_줄로_와도_하나로_확정된다() {
+        // tbl_companies(company_name_ko='애플')와 tbl_stock_info(STOCK_NM='애플')에
+        // 모두 걸려 같은 AAPL 이 이름만 다르게 두 줄 돌아오는 실제 케이스
+        when(mapper.findCanonicalTicker(anyString())).thenReturn(Optional.empty());
+        when(mapper.findByExactName("애플")).thenReturn(List.of(
+                new StockRef("AAPL", "Apple Inc."),
+                new StockRef("AAPL", "애플")));
+
+        StockResolver.Resolution res = resolver.resolve("애플", null);
+
+        assertThat(res.isResolved()).isTrue();
+        assertThat(res.stockCd()).isEqualTo("AAPL");
+        // 표시용 이름은 먼저 나온 tbl_companies 쪽을 쓴다
+        assertThat(res.stockNm()).isEqualTo("Apple Inc.");
+        assertThat(res.candidates()).isEmpty();
+    }
+
+    @Test
+    void 부분일치_후보도_티커_기준으로_중복이_제거된다() {
+        when(mapper.findCanonicalTicker(anyString())).thenReturn(Optional.empty());
+        when(mapper.findByExactName("APP")).thenReturn(List.of());
+        when(mapper.findByPartialName(eq("APP"), anyInt())).thenReturn(List.of(
+                new StockRef("AAPL", "Apple Inc."),
+                new StockRef("AAPL", "애플"),
+                new StockRef("APP", "AppLovin")));
+
+        StockResolver.Resolution res = resolver.resolve("app", null);
+
+        assertThat(res.candidates()).extracting(StockRef::stockCd)
+                .containsExactly("AAPL", "APP");
+    }
+
+    @Test
     void 동명이의면_확정하지_않고_후보를_돌려준다() {
         when(mapper.findCanonicalTicker(anyString())).thenReturn(Optional.empty());
         when(mapper.findByExactName("한국전력")).thenReturn(List.of(
