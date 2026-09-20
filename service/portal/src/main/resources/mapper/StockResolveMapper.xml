@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.investment.portal.domain.repository.stock.StockResolveMapper">
+
+    <!--
+        티커 정식형 조회 (FortuneMapper.findCanonicalTicker 와 동일한 변환 규칙)
+        - US: tbl_companies.ticker 그대로
+        - KR: STOCK_CD("005930") / suffix형("005930.KS") 입력 모두 정식형으로 반환
+    -->
+    <select id="findCanonicalTicker" resultType="string">
+        SELECT ticker
+          FROM tbl_companies
+         WHERE ticker = #{ticker}
+         UNION
+        SELECT CASE
+                   WHEN EXCHANGE = 'KOSPI'  THEN CONCAT(STOCK_CD, '.KS')
+                   WHEN EXCHANGE = 'KOSDAQ' THEN CONCAT(STOCK_CD, '.KQ')
+                   ELSE STOCK_CD
+               END
+          FROM tbl_stock_info
+         WHERE USE_YN = 'Y'
+           AND (STOCK_CD = #{ticker}
+            OR  CONCAT(STOCK_CD, '.KS') = #{ticker}
+            OR  CONCAT(STOCK_CD, '.KQ') = #{ticker})
+         LIMIT 1
+    </select>
+
+    <!--
+        종목명 정확 일치 → 정식 티커
+        - 미국 종목의 영문명(company_name)과 한글명(company_name_ko) 모두 대상.
+          FortuneMapper 쪽은 tbl_stock_info(국내)만 봐서 "애플"을 찾지 못한다.
+        - UPPER 비교: 호출부가 대문자로 정규화해서 넘긴다.
+    -->
+    <select id="findByExactName" resultType="com.investment.portal.domain.repository.stock.StockRef">
+        SELECT ticker AS stockCd
+             , company_name AS stockNm
+          FROM tbl_companies
+         WHERE UPPER(company_name) = #{name}
+            OR UPPER(company_name_ko) = #{name}
+         UNION
+        SELECT CASE
+                   WHEN EXCHANGE = 'KOSPI'  THEN CONCAT(STOCK_CD, '.KS')
+                   WHEN EXCHANGE = 'KOSDAQ' THEN CONCAT(STOCK_CD, '.KQ')
+                   ELSE STOCK_CD
+               END AS stockCd
+             , STOCK_NM AS stockNm
+          FROM tbl_stock_info
+         WHERE USE_YN = 'Y'
+           AND UPPER(STOCK_NM) = #{name}
+    </select>
+
+    <!--
+        종목명 부분 일치 — 정확 일치에 실패했을 때 사용자에게 제시할 후보.
+        추천만 하고 자동 선택은 하지 않는다 (잘못 고르면 남의 종목이 기록된다).
+    -->
+    <select id="findByPartialName" resultType="com.investment.portal.domain.repository.stock.StockRef">
+        SELECT * FROM (
+            SELECT ticker AS stockCd
+                 , company_name AS stockNm
+              FROM tbl_companies
+             WHERE UPPER(company_name) LIKE CONCAT('%', #{keyword}, '%')
+                OR UPPER(company_name_ko) LIKE CONCAT('%', #{keyword}, '%')
+                OR UPPER(ticker) LIKE CONCAT('%', #{keyword}, '%')
+             UNION
+            SELECT CASE
+                       WHEN EXCHANGE = 'KOSPI'  THEN CONCAT(STOCK_CD, '.KS')
+                       WHEN EXCHANGE = 'KOSDAQ' THEN CONCAT(STOCK_CD, '.KQ')
+                       ELSE STOCK_CD
+                   END AS stockCd
+                 , STOCK_NM AS stockNm
+              FROM tbl_stock_info
+             WHERE USE_YN = 'Y'
+               AND UPPER(STOCK_NM) LIKE CONCAT('%', #{keyword}, '%')
+        ) t
+         ORDER BY CHAR_LENGTH(t.stockNm)
+         LIMIT #{limit}
+    </select>
+
+    <!-- 정식 티커 → 표시용 종목명 -->
+    <select id="findStockNameByTicker" resultType="string">
+        SELECT company_name
+          FROM tbl_companies
+         WHERE ticker = #{ticker}
+         UNION
+        SELECT STOCK_NM
+          FROM tbl_stock_info
+         WHERE USE_YN = 'Y'
+           AND CASE
+                   WHEN EXCHANGE = 'KOSPI'  THEN CONCAT(STOCK_CD, '.KS')
+                   WHEN EXCHANGE = 'KOSDAQ' THEN CONCAT(STOCK_CD, '.KQ')
+                   ELSE STOCK_CD
+               END = #{ticker}
+         LIMIT 1
+    </select>
+
+</mapper>

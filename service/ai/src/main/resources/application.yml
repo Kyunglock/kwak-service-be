@@ -8,6 +8,11 @@ system:
 kwakai:
   base-url: ${KWAKAI_BASE_URL:http://192.168.0.16:8000/v1}
   model: ${KWAKAI_MODEL:gemma4-31b}
-openai:
-  base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
-  api-key: ${OPENAI_API_KEY:dummy}
+  # 이미지 추론용 모델. 비우면 위 model 을 그대로 쓴다.
+  # 이미지를 읽히려면 이 모델이 멀티모달이어야 한다 — 텍스트 전용이면 서버가 거절한다.
+  vision-model: ${KWAKAI_VISION_MODEL:}
+  # 로컬 GPU에서 고해상도 스크린샷 처리는 텍스트보다 훨씬 오래 걸린다
+  vision-timeout-seconds: ${KWAKAI_VISION_TIMEOUT:300}
+  # vLLM의 guided decoding(response_format) 지원 여부가 버전마다 달라 기본은 끈다.
+  # 서버가 지원하면 true 로 켜는 편이 JSON 파싱 실패가 줄어든다.
+  json-mode: ${KWAKAI_JSON_MODE:false}

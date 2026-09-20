@@ -35,7 +35,7 @@ portal survey  stock-advisor market-analyzer
 - **Spring Cloud Gateway** (WebFlux)
 - **MyBatis** + **MySQL**
 - **Redis** (캐시, JWT 블랙리스트)
-- **Spring AI** + **OpenAI**
+- **로컬 LLM** (vLLM / gemma4-31b) — 텍스트·이미지 추론 전부
 - **Kakao / Naver OAuth2**
 - **Finnhub API** (실시간 주가)
 - **Springdoc OpenAPI** (Swagger)
@@ -77,9 +77,12 @@ NAVER_SECRET=
 REDIRECT_URI=
 
 # External APIs
-OPENAI_API_KEY=
 FINNHUB_API_KEY=
+
+# 로컬 LLM (모든 AI 추론이 여기로 간다)
 KWAKAI_BASE_URL=
+KWAKAI_MODEL=
+KWAKAI_VISION_MODEL=   # 이미지 추론용 (비우면 KWAKAI_MODEL 사용, 멀티모달이어야 함)
 
 # Internal
 SYSTEM_API_KEY=   # 크롤러 연동 시스템 키
