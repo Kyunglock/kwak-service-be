@@ -41,7 +41,7 @@ class TradeCaptureServiceTest {
     private static final LocalDate TODAY = LocalDate.now(ZoneId.of("Asia/Seoul"));
 
     @Mock PortfolioMapper portfolioMapper;
-    @Mock AiGatewayClient aiGatewayClient;
+    @Mock TradeExtractionGateway extractionGateway;
     @Mock StockResolver stockResolver;
     @Mock TradeDraftStore draftStore;
     @Mock TransactionHistoryService transactionHistoryService;
@@ -54,7 +54,7 @@ class TradeCaptureServiceTest {
         // 파서는 실제 구현을 쓴다 — LLM 응답 → 초안 변환까지가 이 기능의 본체라서
         // 여기서 mock으로 끊으면 정작 깨지기 쉬운 경로가 테스트에서 빠진다.
         service = new TradeCaptureServiceImpl(
-                portfolioMapper, aiGatewayClient,
+                portfolioMapper, extractionGateway,
                 new TradeExtractionParser(new ObjectMapper()),
                 stockResolver, draftStore, transactionHistoryService, eventPublisher);
 
@@ -64,10 +64,8 @@ class TradeCaptureServiceTest {
     }
 
     private void aiReturns(String json) {
-        when(aiGatewayClient.chat(anyString(), anyString()))
-                .thenReturn(new AiGatewayClient.ChatResponse(json, 0, 0));
-        when(aiGatewayClient.vision(anyString(), anyString(), anyList()))
-                .thenReturn(new AiGatewayClient.ChatResponse(json, 0, 0));
+        when(extractionGateway.extractFromText(anyString())).thenReturn(json);
+        when(extractionGateway.extractFromImage(any())).thenReturn(json);
     }
 
     private void resolves(String stockCd, String stockNm) {
@@ -90,7 +88,7 @@ class TradeCaptureServiceTest {
         assertThatThrownBy(() -> service.captureText(USER, new TradeCaptureTextRequest(99L, "애플 1주")))
                 .isInstanceOf(PortfolioAccessDeniedException.class);
 
-        verifyNoInteractions(aiGatewayClient);
+        verifyNoInteractions(extractionGateway);
     }
 
     @Test
@@ -236,8 +234,9 @@ class TradeCaptureServiceTest {
 
     @Test
     void AI_호출_실패는_재시도_안내로_바뀐다() {
-        when(aiGatewayClient.chat(anyString(), anyString()))
-                .thenThrow(new RuntimeException("connection reset"));
+        // 경로 선택과 폴백은 게이트웨이 책임이라, 여기서는 전파만 확인한다
+        when(extractionGateway.extractFromText(anyString()))
+                .thenThrow(new TradeCaptureUnavailableException(new RuntimeException("all down")));
 
         assertThatThrownBy(() -> service.captureText(USER, textRequest("애플 1주")))
                 .isInstanceOf(TradeCaptureUnavailableException.class);
@@ -253,7 +252,7 @@ class TradeCaptureServiceTest {
         assertThatThrownBy(() -> service.captureImage(USER, PORTFOLIO_ID, pdf))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("지원하지 않는");
-        verifyNoInteractions(aiGatewayClient);
+        verifyNoInteractions(extractionGateway);
     }
 
     @Test
@@ -264,7 +263,7 @@ class TradeCaptureServiceTest {
         assertThatThrownBy(() -> service.captureImage(USER, PORTFOLIO_ID, big))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("4MB");
-        verifyNoInteractions(aiGatewayClient);
+        verifyNoInteractions(extractionGateway);
     }
 
     @Test
@@ -287,12 +286,11 @@ class TradeCaptureServiceTest {
 
         service.captureImage(USER, PORTFOLIO_ID, png);
 
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<AiGatewayClient.ImagePart>> captor = ArgumentCaptor.forClass(List.class);
-        verify(aiGatewayClient).vision(anyString(), anyString(), captor.capture());
-        assertThat(captor.getValue()).hasSize(1);
-        assertThat(captor.getValue().get(0).mimeType()).isEqualTo("image/png");
-        assertThat(captor.getValue().get(0).base64()).isEqualTo("AQIDBA==");
+        ArgumentCaptor<AiGatewayClient.ImagePart> captor =
+                ArgumentCaptor.forClass(AiGatewayClient.ImagePart.class);
+        verify(extractionGateway).extractFromImage(captor.capture());
+        assertThat(captor.getValue().mimeType()).isEqualTo("image/png");
+        assertThat(captor.getValue().base64()).isEqualTo("AQIDBA==");
     }
 
     // ── 확정 ─────────────────────────────────────────────────────────────────────

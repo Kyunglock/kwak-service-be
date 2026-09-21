@@ -1,0 +1,121 @@
+{
+  "name": "trade-extract",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "trade-extract",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c3000000-0000-4000-8000-000000000001",
+      "name": "매매기록 추출 요청",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -240,
+        0
+      ],
+      "webhookId": "c3000000-0000-4000-8000-0000000000aa"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// 매매기록 추출 프롬프트.\n//\n// 여기를 고치면 배포 없이 바로 반영된다 — 이 워크플로우를 붙인 이유가 이것이다.\n// 다만 고친 날 반드시 export 해서 git 에 커밋할 것. 안 하면 변경 이력이 사라진다.\n// Java 쪽 TradeExtractionPrompt 는 폴백 경로용 기준선으로 남아 있다.\n\nconst SYSTEM = `당신은 투자 기록 도우미입니다. 사용자의 문장이나 증권사 화면 캡처에서 \"매매 내역\"만 뽑아냅니다.\n\n반드시 지킬 것:\n- 아래 JSON 형식으로만 응답하세요. 설명 문장, 마크다운, 주석 금지.\n- 응답의 첫 글자는 반드시 { 이고 마지막 글자는 반드시 } 여야 합니다.\n  \"다음은 결과입니다\" 같은 머리말이나 코드블록 표시를 붙이지 마세요.\n- 확인할 수 없는 값은 추측하지 말고 null로 두세요. 비워두는 것이 틀리게 채우는 것보다 낫습니다.\n- ticker: 화면이나 문장에 티커가 그대로 적혀 있을 때만 채우세요.\n  종목명만 보고 티커를 떠올려 적으면 안 됩니다. 모르면 null.\n- name: 실제로 쓰여 있던 종목 표기를 그대로 옮기세요 (한글명/영문명/티커 무엇이든).\n- qty, price, amount: 숫자만 남기세요. 쉼표와 통화기호는 제거합니다.\n  단가를 알 수 없고 총액만 보이면 price는 null, amount에 총액을 넣으세요.\n- date: YYYY-MM-DD. 화면에 날짜가 없으면 null. 오늘 날짜로 대신 채우지 마세요.\n- type: 매수면 BUY, 매도면 SELL. 판단이 안 되면 BUY.\n- currency: 통화기호나 표기 기준으로 USD, KRW 등. 불명확하면 null.\n- 잔고·보유종목 화면처럼 \"매매 시점\"이 아닌 현재 보유 현황이면 date는 null로 두세요.\n- 매매 내역이 전혀 없으면 trades를 빈 배열로 두세요. 억지로 만들지 마세요.\n\n응답 형식:\n{\"trades\":[{\"name\":\"종목 표기 그대로\",\"ticker\":null,\"type\":\"BUY\",\"qty\":10,\"price\":230.15,\"amount\":null,\"date\":\"2026-09-18\",\"currency\":\"USD\"}]}`;\n\nconst TEXT_USER_PREFIX = `아래 문장에서 매매 내역을 추출하세요.\n\n`;\n\nconst IMAGE_USER = `첨부된 증권사 화면 캡처에서 매매 내역을 추출하세요.\n표의 각 행이 한 건입니다. 합계 행이나 헤더는 제외하세요.\n숫자가 흐릿해 확신이 없으면 그 항목만 null로 두세요.\n글자가 잘 안 보이는데 억지로 읽어내는 것보다, null로 두어 사용자가 직접 채우게 하는 편이\n훨씬 낫습니다. 자릿수(10 / 100 / 1000)가 헷갈리면 반드시 null로 두세요.`;\n\n// Webhook 노드는 요청 본문을 body 아래에 담는다 (버전에 따라 최상위인 경우도 있어 둘 다 본다)\nconst body = $json.body ?? $json;\nconst image = body.image ?? null;\nconst hasImage = !!(image && image.base64);\n\n// 이미지가 없으면 ai 모듈의 vision 이 알아서 텍스트 전용 호출로 위임한다.\n// 그래서 여기서 분기 노드를 두지 않는다 — 노드가 줄면 깨질 곳도 준다.\nreturn [{\n  json: {\n    system: SYSTEM,\n    user: hasImage ? IMAGE_USER : TEXT_USER_PREFIX + (body.text ?? ''),\n    images: hasImage ? [{ mimeType: image.mimeType, base64: image.base64 }] : [],\n  },\n}];\n"
+      },
+      "id": "c3000000-0000-4000-8000-000000000002",
+      "name": "프롬프트 구성",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AI_URI }}/api/v1/ai/vision",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-System-Key",
+              "value": "={{ $env.SYSTEM_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 420000
+        }
+      },
+      "id": "c3000000-0000-4000-8000-000000000003",
+      "name": "로컬 LLM 호출",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ content: $json.content }) }}",
+        "options": {}
+      },
+      "id": "c3000000-0000-4000-8000-000000000004",
+      "name": "추출 결과 응답",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        480,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "매매기록 추출 요청": {
+      "main": [
+        [
+          {
+            "node": "프롬프트 구성",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "프롬프트 구성": {
+      "main": [
+        [
+          {
+            "node": "로컬 LLM 호출",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "로컬 LLM 호출": {
+      "main": [
+        [
+          {
+            "node": "추출 결과 응답",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "executionTimeout": 600
+  },
+  "pinData": {}
+}

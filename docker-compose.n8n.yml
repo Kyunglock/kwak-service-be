@@ -2,6 +2,14 @@
 #
 # 실행: docker compose -f docker-compose.n8n.yml up -d
 #
+# ⚠ 운영 서버에 올릴 때 반드시 확인할 것:
+#   1) 아래 ports 는 127.0.0.1 에만 바인딩한다. 0.0.0.0 으로 열면 n8n 로그인 화면이
+#      인터넷에 노출되고, 컨테이너 안에는 SYSTEM_API_KEY 가 들어 있다.
+#      평소 접근은 SSH 터널로: ssh -L 5678:127.0.0.1:5678 <user>@<server>
+#   2) 도메인을 붙일 거면 N8N_HOST / N8N_PROTOCOL / WEBHOOK_URL 을 실제 값으로 바꾸고
+#      N8N_SECURE_COOKIE 줄을 삭제한다 (HTTPS 에서는 기본값 true 가 맞다).
+#   3) N8N_ENCRYPTION_KEY 는 백업해 둔다. 잃으면 저장된 credential 을 복호화할 수 없다.
+#
 # 설계 원칙: n8n은 MySQL에 직접 붙지 않고 collector의 내부 HTTP API(X-System-Key)로만
 # 접근합니다. 테이블 소유자를 하나로 유지해야 스키마 변경 때 조용히 깨지는 쪽이 안 생깁니다.
 #
@@ -12,7 +20,8 @@ services:
     image: docker.n8n.io/n8nio/n8n:latest
     container_name: kwak-n8n
     ports:
-      - "5678:5678"
+      # 외부 노출 금지 — 접근은 SSH 터널로 한다 (상단 주석 참고)
+      - "127.0.0.1:5678:5678"
     environment:
       N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}   # 반드시 고정·백업. 바뀌면 저장된 credential 복호화 불가
       N8N_HOST: ${N8N_HOST:-localhost}
@@ -31,6 +40,8 @@ services:
 
       # 워크플로우가 $env 로 참조하는 값들
       COLLECTOR_URI: ${COLLECTOR_URI:-http://host.docker.internal:8000}
+      # trade-extract 워크플로우가 부르는 ai 모듈(:8090)
+      AI_URI: ${AI_URI:-http://host.docker.internal:8090}
       SYSTEM_API_KEY: ${SYSTEM_API_KEY}
       FRED_API_KEY: ${FRED_API_KEY}
       FRED_START_DATE: ${FRED_START_DATE:-2015-01-01}

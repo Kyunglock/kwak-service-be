@@ -24,7 +24,16 @@ docker compose -f docker-compose.n8n.yml up -d
 docker compose -f docker-compose.n8n.yml logs -f n8n
 ```
 
-`http://localhost:5678` 접속 → owner 계정 생성.
+컨테이너는 `127.0.0.1:5678` 에만 바인딩됩니다. 로컬이면 `http://localhost:5678` 로 바로,
+원격 서버면 SSH 터널로 접속합니다:
+
+```bash
+ssh -L 5678:127.0.0.1:5678 <계정>@<서버>
+# 브라우저에서 http://localhost:5678
+```
+
+첫 접속에서 owner 계정을 만듭니다. **방화벽에서 5678 을 열지 마세요** — n8n 컨테이너 안에는
+`SYSTEM_API_KEY` 가 들어 있고, 워크플로우를 새로 만들면 내부 API 를 마음대로 호출할 수 있습니다.
 
 `desktop_default` 네트워크가 없으면 먼저 만드세요:
 
@@ -48,6 +57,30 @@ docker restart kwak-n8n
 > 경고 표시가 없는지 확인하세요. 특히 `원문 요청` 노드의 Response 옵션(text / full response /
 > never error)과 `기사별 처리`(Loop Over Items)의 done/loop 분기 연결을 확인하면 됩니다.
 
+## 새 워크플로우를 추가할 때의 규칙
+
+앞으로 워크플로우가 늘어날수록 이 경계가 흐려지기 쉽습니다. 네 가지만 지키면 됩니다.
+
+**1. n8n 은 프롬프트와 외부 호출만 맡는다.**
+파싱·검증·저장은 애플리케이션에 남깁니다. 예: `trade-extract` 는 LLM 원문 문자열만
+돌려주고, JSON 파싱(`TradeExtractionParser`, 테스트 14개)과 티커 검증(`StockResolver`)은
+Java 가 합니다. 검증 로직을 n8n 으로 옮기면 테스트가 사라지고, LLM 오출력이 그대로
+사용자 데이터가 됩니다.
+
+**2. DB 에 직접 붙지 않는다.**
+내부 HTTP API(`X-System-Key`)로만 접근합니다. 테이블 소유자를 하나로 유지해야
+스키마를 바꿀 때 조용히 깨지는 쪽이 안 생깁니다.
+
+**3. 사용자 요청 경로에 넣을 거면 폴백을 함께 만든다.**
+`trade-extract` 는 `trade.extraction.n8n.enabled` 로 켜고 끄며, 호출이 실패하면
+ai 모듈 직접 호출로 폴백합니다. n8n 은 "켜면 좋아지는 것"이어야지
+"없으면 기능이 죽는 것"이 되면 안 됩니다.
+
+**4. 프롬프트를 옮겨도 코드 쪽 기준선은 남긴다.**
+`TradeExtractionPrompt.java` 는 폴백 경로에서 실제로 쓰이면서, git 에 남는
+프롬프트 기준선 역할도 합니다. n8n 쪽만 고치고 오래 두면 두 프롬프트가 갈라지니
+크게 바꿀 때는 양쪽을 맞춰 주세요.
+
 ## 내보내기 규율 — 반드시 지킬 것
 
 n8n의 최대 장점(배포 없이 프롬프트·파이프라인 수정)이 그대로 최대 위험입니다. 워크플로우를
@@ -65,6 +98,33 @@ git add n8n/workflows && git commit -m "chore(n8n): 워크플로우 변경 반�
 그래도 커밋 전에 diff는 확인하세요.
 
 ## 워크플로우 목록
+
+### `trade-extract` (사용자 요청 경로)
+
+AI 어시스턴트의 매매기록 추출을 담당합니다. 다른 둘과 달리 **스케줄이 아니라 웹훅**으로
+portal 이 직접 호출합니다.
+
+```
+POST /webhook/trade-extract   { text } 또는 { image: { mimeType, base64 } }
+  → 프롬프트 구성    Code 노드. 여기를 고치면 배포 없이 반영된다
+  → 로컬 LLM 호출    POST {AI_URI}/api/v1/ai/vision (X-System-Key)
+  → 추출 결과 응답    { content: "<LLM 원문>" }
+```
+
+이미지가 없으면 ai 모듈의 `vision` 이 텍스트 전용 호출로 알아서 위임하므로 분기 노드를
+두지 않았습니다 — 노드가 줄면 깨질 곳도 줄어듭니다.
+
+**켜는 순서:**
+1. n8n UI 에서 워크플로우를 열고 **Active 토글을 켭니다** (비활성이면 `/webhook/` 경로가 404)
+2. portal 의 `.env` 에 `TRADE_EXTRACTION_VIA_N8N=true`, `TRADE_EXTRACTION_N8N_URL` 설정
+3. portal 재시작
+
+> 비활성 상태에서 UI 의 "Execute workflow" 로 테스트할 때는 경로가 `/webhook-test/` 입니다.
+> 운영 호출 경로(`/webhook/`)는 워크플로우가 Active 일 때만 열립니다.
+
+끄려면 `TRADE_EXTRACTION_VIA_N8N=false` 로 되돌리면 됩니다. 워크플로우가 죽어 있어도
+ai 모듈 직접 호출로 폴백하므로 기능 자체는 멈추지 않지만, 폴백은 로그에 warn 으로 남습니다 —
+계속 찍히면 n8n 쪽을 고쳐야 한다는 뜻입니다.
 
 ### `news-content-enrich`
 
