@@ -44,7 +44,7 @@ public class TradeCaptureServiceImpl implements TradeCaptureService {
     private static final LocalDate MIN_TRADE_DATE = LocalDate.of(1990, 1, 1);
 
     private final PortfolioMapper portfolioMapper;
-    private final AiGatewayClient aiGatewayClient;
+    private final TradeExtractionGateway extractionGateway;
     private final TradeExtractionParser parser;
     private final StockResolver stockResolver;
     private final TradeDraftStore draftStore;
@@ -57,10 +57,8 @@ public class TradeCaptureServiceImpl implements TradeCaptureService {
     public TradeDraftResponse captureText(String userId, TradeCaptureTextRequest request) {
         requireOwnedPortfolio(userId, request.portfolioId());
 
-        String content = callLlm(
-                () -> aiGatewayClient.chat(
-                        TradeExtractionPrompt.SYSTEM,
-                        TradeExtractionPrompt.TEXT_USER_PREFIX + request.text()));
+        // 추출 경로(n8n / ai 모듈 직접)는 게이트웨이가 고른다
+        String content = extractionGateway.extractFromText(request.text());
 
         return buildDraft(userId, request.portfolioId(), parser.parse(content));
     }
@@ -68,25 +66,10 @@ public class TradeCaptureServiceImpl implements TradeCaptureService {
     @Override
     public TradeDraftResponse captureImage(String userId, Long portfolioId, MultipartFile image) {
         requireOwnedPortfolio(userId, portfolioId);
-        AiGatewayClient.ImagePart part = toImagePart(image);
 
-        String content = callLlm(
-                () -> aiGatewayClient.vision(
-                        TradeExtractionPrompt.SYSTEM,
-                        TradeExtractionPrompt.IMAGE_USER,
-                        List.of(part)));
+        String content = extractionGateway.extractFromImage(toImagePart(image));
 
         return buildDraft(userId, portfolioId, parser.parse(content));
-    }
-
-    private String callLlm(java.util.function.Supplier<AiGatewayClient.ChatResponse> call) {
-        try {
-            AiGatewayClient.ChatResponse response = call.get();
-            return response == null ? null : response.content();
-        } catch (Exception e) {
-            log.error("[TradeCapture] AI 추출 호출 실패", e);
-            throw new TradeCaptureUnavailableException(e);
-        }
     }
 
     private TradeDraftResponse buildDraft(String userId, Long portfolioId, List<ExtractedTrade> extracted) {

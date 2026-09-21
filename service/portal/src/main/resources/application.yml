@@ -46,6 +46,17 @@ jwt:
 ai:
   base-url: ${AI_URI:http://localhost:8090}
 
+trade:
+  extraction:
+    n8n:
+      # 매매기록 추출을 n8n 워크플로우로 보낼지 여부.
+      # 워크플로우가 실제로 도는 걸 확인하기 전까지는 false 로 둔다.
+      # 실패하면 ai 모듈 직접 호출로 자동 폴백하므로 켜도 기능이 죽지는 않는다.
+      enabled: ${TRADE_EXTRACTION_VIA_N8N:false}
+      url: ${TRADE_EXTRACTION_N8N_URL:http://localhost:5678/webhook/trade-extract}
+      # n8n 워크플로우 상한(600초)보다 짧게 — 여기서 먼저 끊고 폴백한다
+      timeout-seconds: ${TRADE_EXTRACTION_N8N_TIMEOUT:360}
+
 system:
   # survey-service의 SystemSurveyController(뉴스 크롤러 연동)가 사용하는 내부 시스템 API 키
   api-key: ${SYSTEM_API_KEY}
