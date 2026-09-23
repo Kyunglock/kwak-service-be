@@ -97,7 +97,9 @@ config/             - Bean 설정
 - **Java 21**, **Spring Boot 3.5.9**, **Gradle** 멀티모듈
 - **Spring Cloud Gateway** (WebFlux) — API Gateway
 - **MyBatis** — ORM (매퍼 XML은 `classpath*:mapper/**/*.xml`)
-- **MySQL** — 주 데이터베이스 (Flyway 마이그레이션 `db/migration/V*.sql`)
+- **MySQL** — 주 데이터베이스. 마이그레이션은 `db/migration/V*.sql` 을 **수동 실행**한다
+  (Flyway 미사용 — 어느 build.gradle 에도 의존성이 없다. ARCHITECTURE.md 참고).
+  CI 는 파일명·버전번호 규칙만 검사한다
 - **Redis** — 캐시, JWT 블랙리스트
 - **Kafka** — 이벤트 파이프라인 (insight-builder)
 - **MapStruct** — DTO 매핑
