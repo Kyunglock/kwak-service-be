@@ -7,6 +7,8 @@ import kwak.common.application.event.ActivityEvent;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,6 +33,23 @@ class ActivityLogServiceImplTest {
         ArgumentCaptor<ActivityLog> captor = ArgumentCaptor.forClass(ActivityLog.class);
         verify(mapper).insert(captor.capture());
         assertThat(captor.getValue().getDetail()).hasSize(1000);
+    }
+
+    @Test
+    void regDt는_DB의_NOW가_아니라_KST_현재시각으로_직접_채워서_보낸다() {
+        // MySQL 서버 세션 시간대가 KST 로 맞춰져 있지 않으면 NOW() 로는 기록 시각이 밀린다 —
+        // JDBC serverTimezone 파라미터는 드라이버가 값을 해석하는 방식만 바꿀 뿐이라
+        // 서버 계산 자체는 못 고친다. 그래서 애플리케이션 쪽에서 직접 계산해 넘긴다.
+        LocalDateTime before = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+
+        service.record(ActivityEvent.of("user-1", "LOGIN"));
+
+        LocalDateTime after = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+        ArgumentCaptor<ActivityLog> captor = ArgumentCaptor.forClass(ActivityLog.class);
+        verify(mapper).insert(captor.capture());
+        LocalDateTime regDt = captor.getValue().getRegDt();
+        assertThat(regDt).isNotNull();
+        assertThat(regDt).isBetween(before, after);
     }
 
     // ── 전체 조회에서 관리자 본인 활동 제외 ────────────────────────────────────────
