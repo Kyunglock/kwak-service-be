@@ -41,13 +41,20 @@ public class ActivityLogServiceImpl implements ActivityLogService {
     }
 
     @Override
-    public ActivityLogPage search(String userId, String actionType, int page, int size) {
+    public ActivityLogPage search(String requestingUserId, String targetUserId, String actionType, int page, int size) {
         int p = Math.max(0, page);
         int s = size <= 0 ? 20 : Math.min(size, 100);
-        long total = activityLogMapper.countSearch(userId, actionType);
-        List<ActivityLogResponse> content = activityLogMapper.search(userId, actionType, p * s, s)
+        String excludeUserId = selfExclusion(requestingUserId, targetUserId);
+        long total = activityLogMapper.countSearch(targetUserId, actionType, excludeUserId);
+        List<ActivityLogResponse> content = activityLogMapper.search(targetUserId, actionType, excludeUserId, p * s, s)
                 .stream().map(ActivityLogResponse::from).toList();
         return toPage(content, p, s, total);
+    }
+
+    /** targetUserId 로 요청자 본인을 명시적으로 지목한 게 아니면 요청자를 제외 대상으로 삼는다. */
+    private String selfExclusion(String requestingUserId, String targetUserId) {
+        boolean explicitlySelf = targetUserId != null && targetUserId.equals(requestingUserId);
+        return explicitlySelf ? null : requestingUserId;
     }
 
     private ActivityLogPage toPage(List<ActivityLogResponse> content, int page, int size, long total) {

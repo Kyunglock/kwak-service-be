@@ -19,9 +19,11 @@ public interface ActivityLogMapper {
 
     List<ActivityLog> search(@Param("userId") String userId,
                              @Param("actionType") String actionType,
+                             @Param("excludeUserId") String excludeUserId,
                              @Param("offset") int offset,
                              @Param("size") int size);
 
     long countSearch(@Param("userId") String userId,
-                     @Param("actionType") String actionType);
+                     @Param("actionType") String actionType,
+                     @Param("excludeUserId") String excludeUserId);
 }
