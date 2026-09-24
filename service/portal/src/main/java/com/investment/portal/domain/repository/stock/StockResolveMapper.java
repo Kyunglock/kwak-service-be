@@ -27,4 +27,7 @@ public interface StockResolveMapper {
 
     /** 정식 티커 → 표시용 종목명. */
     Optional<String> findStockNameByTicker(@Param("ticker") String ticker);
+
+    /** 미국 종목 정식 티커 → 한글명(tbl_companies.company_name_ko). 국내 종목·미등록이면 empty. */
+    Optional<String> findKoreanNameByTicker(@Param("ticker") String ticker);
 }

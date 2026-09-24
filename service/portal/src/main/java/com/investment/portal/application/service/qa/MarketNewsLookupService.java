@@ -2,6 +2,7 @@ package com.investment.portal.application.service.qa;
 
 import com.investment.analyzer.market_analyzer.domain.repository.news.NewsMapper;
 import com.investment.portal.application.dto.qa.MarketNewsRow;
+import com.investment.portal.domain.repository.stock.StockResolveMapper;
 import kwak.common.collector.CollectorGatewayClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,6 +11,7 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * 특정 종목·날짜의 뉴스를 찾는다. DB 키워드 매칭 우선 → 없으면 collector 온디맨드
@@ -21,20 +23,26 @@ import java.util.List;
 @RequiredArgsConstructor
 public class MarketNewsLookupService {
 
+    private static final Pattern KR_TICKER = Pattern.compile("^\\d{6}\\.(KS|KQ|KX)$");
+
     private final NewsMapper newsMapper;
     private final CollectorGatewayClient collectorGatewayClient;
+    private final StockResolveMapper stockResolveMapper;
 
     public List<MarketNewsRow> findNewsForDate(String stockCd, String stockNm, LocalDate date) {
-        List<String> keywords = List.of(stockNm, stockCd);
+        String koreanName = stockResolveMapper.findKoreanNameByTicker(stockCd).orElse(null);
+        List<String> keywords = NewsKeywords.build(stockNm, stockCd, koreanName);
 
-        List<MarketNewsRow> dbHits = newsMapper.findByDateAndKeyword(date, keywords);
-        if (!dbHits.isEmpty()) {
-            return dbHits;
+        if (!keywords.isEmpty()) {
+            List<MarketNewsRow> dbHits = newsMapper.findByDateAndKeyword(date, closeAtKst(stockCd, date), keywords);
+            if (!dbHits.isEmpty()) {
+                return dbHits;
+            }
         }
 
         try {
             CollectorGatewayClient.CrawlResult result =
-                    collectorGatewayClient.crawlOnDemand(stockNm, stockCd, date);
+                    collectorGatewayClient.crawlOnDemand(NewsKeywords.shortName(stockNm), stockCd, date);
             if (!result.found()) {
                 return List.of();
             }
@@ -52,6 +60,13 @@ public class MarketNewsLookupService {
             log.warn("[MarketQuestion] 온디맨드 크롤링 실패 ({}, {}): {}", stockNm, date, e.getMessage());
             return List.of();
         }
+    }
+
+    /** 해당 거래일 장 마감 시각(KST). 국내는 당일 15:30, 미국은 16:00 ET = 다음날 05:00(서머타임)~06:00 KST. */
+    static LocalDateTime closeAtKst(String stockCd, LocalDate date) {
+        return KR_TICKER.matcher(stockCd).matches()
+                ? date.atTime(15, 30)
+                : date.plusDays(1).atTime(5, 0);
     }
 
     /** collector 가 주는 ISO-8601(UTC, "...Z") 문자열을 화면 표시용으로만 느슨하게 변환.
