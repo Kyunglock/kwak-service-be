@@ -8,14 +8,24 @@ import com.investment.portal.domain.repository.log.ActivityLogMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class ActivityLogServiceImpl implements ActivityLogService {
 
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+
     private final ActivityLogMapper activityLogMapper;
 
+    /**
+     * reg_dt 를 DB의 NOW() 가 아니라 여기서 직접 계산해서 넘긴다. NOW()는 MySQL
+     * 서버(세션)의 시간대를 타는데, JDBC URL의 serverTimezone 파라미터는 드라이버가
+     * 값을 해석하는 방식만 바꿀 뿐 서버가 NOW()를 계산하는 시간대는 바꾸지 않는다 —
+     * 서버 시간대가 KST로 맞춰져 있지 않으면 기록 시각이 밀린다.
+     */
     @Override
     public void record(ActivityEvent e) {
         ActivityLog log = ActivityLog.builder()
@@ -26,6 +36,7 @@ public class ActivityLogServiceImpl implements ActivityLogService {
                 .detail(truncate(e.detail(), 1000))
                 .ip(truncate(e.ip(), 45))
                 .userAgent(truncate(e.userAgent(), 255))
+                .regDt(LocalDateTime.now(KST))
                 .build();
         activityLogMapper.insert(log);
     }

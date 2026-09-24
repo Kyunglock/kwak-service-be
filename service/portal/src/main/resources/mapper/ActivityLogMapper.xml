@@ -27,7 +27,7 @@
            , #{detail}
            , #{ip}
            , #{userAgent}
-           , NOW()
+           , #{regDt}
         )
     </insert>
 
