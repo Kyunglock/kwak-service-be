@@ -101,6 +101,108 @@
             </foreach>
     </select>
 
+    <!--
+        기간(startDt~endDt) 내 전일 대비 등락률이 가장 큰(GAIN)/작은(DROP) 날.
+        startDt 당일의 등락률도 후보에 넣어야 하므로 LAG 계산 자체는 startDt 제약 없이
+        endDt 까지의 전체 이력으로 하고, 필터링은 바깥 WHERE 에서 한다 — 그렇지 않으면
+        startDt 첫날은 "전일"이 조회 범위 밖에 있어 항상 제외되는 버그가 생긴다.
+    -->
+    <select id="findMaxChangeDay" resultType="com.investment.portal.application.dto.stock.StockPriceMoveRow">
+        WITH ranked AS (
+            SELECT price_dt
+                 , close_price
+                 , LAG(close_price) OVER (ORDER BY price_dt) AS prev_close
+              FROM tbl_stock_price_history
+             WHERE stock_cd = #{stockCd}
+               AND price_dt &lt;= #{endDt}
+        )
+        SELECT price_dt    AS priceDt
+             , prev_close  AS prevClose
+             , close_price AS closePrice
+             , ROUND((close_price - prev_close) / prev_close * 100, 4) AS changePct
+          FROM ranked
+         WHERE prev_close IS NOT NULL
+           AND price_dt &gt;= #{startDt}
+         ORDER BY changePct
+            <choose>
+                <when test="direction == 'GAIN'">DESC</when>
+                <otherwise>ASC</otherwise>
+            </choose>
+         LIMIT 1
+    </select>
+
+    <!-- dt 이후(포함) 가장 가까운 거래일. 기간 수익률 시작점 -->
+    <select id="findClosestOnOrAfter" resultType="StockPriceHistory">
+        SELECT price_id
+             , stock_cd
+             , price_dt
+             , open_price
+             , high_price
+             , low_price
+             , close_price
+             , volume
+             , reg_dt
+          FROM tbl_stock_price_history
+         WHERE stock_cd = #{stockCd}
+           AND price_dt &gt;= #{dt}
+         ORDER BY price_dt ASC
+         LIMIT 1
+    </select>
+
+    <!-- dt 이전(포함) 가장 가까운 거래일. 기간 수익률 끝점 -->
+    <select id="findClosestOnOrBefore" resultType="StockPriceHistory">
+        SELECT price_id
+             , stock_cd
+             , price_dt
+             , open_price
+             , high_price
+             , low_price
+             , close_price
+             , volume
+             , reg_dt
+          FROM tbl_stock_price_history
+         WHERE stock_cd = #{stockCd}
+           AND price_dt &lt;= #{dt}
+         ORDER BY price_dt DESC
+         LIMIT 1
+    </select>
+
+    <!-- 기간 내 고가 최고일 -->
+    <select id="findPeriodHighDay" resultType="StockPriceHistory">
+        SELECT price_id
+             , stock_cd
+             , price_dt
+             , open_price
+             , high_price
+             , low_price
+             , close_price
+             , volume
+             , reg_dt
+          FROM tbl_stock_price_history
+         WHERE stock_cd = #{stockCd}
+           AND price_dt BETWEEN #{startDt} AND #{endDt}
+         ORDER BY high_price DESC, price_dt DESC
+         LIMIT 1
+    </select>
+
+    <!-- 기간 내 저가 최저일 -->
+    <select id="findPeriodLowDay" resultType="StockPriceHistory">
+        SELECT price_id
+             , stock_cd
+             , price_dt
+             , open_price
+             , high_price
+             , low_price
+             , close_price
+             , volume
+             , reg_dt
+          FROM tbl_stock_price_history
+         WHERE stock_cd = #{stockCd}
+           AND price_dt BETWEEN #{startDt} AND #{endDt}
+         ORDER BY low_price ASC, price_dt DESC
+         LIMIT 1
+    </select>
+
     <!-- 주가 이력 등록 -->
     <insert id="insert" useGeneratedKeys="true" keyProperty="priceId">
         INSERT INTO tbl_stock_price_history (

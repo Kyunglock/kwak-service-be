@@ -34,4 +34,28 @@
          LIMIT 5
     </select>
 
+    <!--
+        대상일 전후 1일 범위에서 keywords(종목 한글/영문명 등) 중 하나라도
+        title/content 에 포함된 기사를 최신순 최대 5건. 위 findArticlesForBriefing
+        과 동일한 하루 버퍼 이유.
+    -->
+    <select id="findByDateAndKeyword" resultType="com.investment.portal.application.dto.qa.MarketNewsRow">
+        SELECT id
+             , title
+             , content
+             , source
+             , url
+             , published_at
+          FROM news_article
+         WHERE published_at >= DATE_SUB(#{date}, INTERVAL 1 DAY)
+           AND published_at &lt; DATE_ADD(#{date}, INTERVAL 1 DAY)
+           AND (
+                <foreach collection="keywords" item="kw" separator="OR">
+                    title LIKE CONCAT('%', #{kw}, '%') OR content LIKE CONCAT('%', #{kw}, '%')
+                </foreach>
+           )
+         ORDER BY published_at DESC
+         LIMIT 5
+    </select>
+
 </mapper>
