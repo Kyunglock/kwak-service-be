@@ -1,6 +1,7 @@
 package com.investment.analyzer.market_analyzer.domain.repository.news;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,10 +22,13 @@ public interface NewsMapper {
     List<NewsArticle> findArticlesForBriefing(LocalDate summaryDt);
 
     /**
-     * 대상일 전후 1일 범위에서 keywords(종목명 등) 중 하나라도 title/content 에
-     * 포함된 기사를 최신순 최대 5건. RSS 수집이 22:00~06:00 KST 창을 쓰므로
-     * 미국 장중 사건이 "다음날 새벽 KST" 기사로 잡힐 수 있어 하루 버퍼를 둔다
-     * ({@link #findArticlesForBriefing} 과 동일한 전제).
+     * 대상일 전후에서 keywords 중 하나라도 title/content 에 포함된 기사를 최대 5건,
+     * 장 마감 시각(closeAt, KST)에 가까운 순으로.
+     *
+     * <p>published_at 은 KST 로 저장된다. 미국 종목의 대상일은 미국 거래일이라
+     * 장 마감 직후 기사가 KST "다음날 새벽"에 찍히므로 대상일+1일까지 포함한다.
      */
-    List<MarketNewsRow> findByDateAndKeyword(@Param("date") LocalDate date, @Param("keywords") List<String> keywords);
+    List<MarketNewsRow> findByDateAndKeyword(@Param("date") LocalDate date,
+                                             @Param("closeAt") LocalDateTime closeAt,
+                                             @Param("keywords") List<String> keywords);
 }

@@ -35,9 +35,10 @@
     </select>
 
     <!--
-        대상일 전후 1일 범위에서 keywords(종목 한글/영문명 등) 중 하나라도
-        title/content 에 포함된 기사를 최신순 최대 5건. 위 findArticlesForBriefing
-        과 동일한 하루 버퍼 이유.
+        대상일 전후에서 keywords 중 하나라도 title/content 에 포함된 기사 최대 5건.
+        published_at 은 KST. 미국 거래일 D 의 장중·마감 직후 기사는 KST 로 D 저녁 ~ D+1
+        새벽에 찍히므로 [D-1, D+2) 로 잡고, 장 마감 시각(closeAt)에 가까운 순으로 고른다.
+        (findArticlesForBriefing 의 [D-1, D+1) 은 KST 날짜 기준 브리핑용이라 여기엔 맞지 않는다.)
     -->
     <select id="findByDateAndKeyword" resultType="com.investment.portal.application.dto.qa.MarketNewsRow">
         SELECT id
@@ -48,13 +49,13 @@
              , published_at
           FROM news_article
          WHERE published_at >= DATE_SUB(#{date}, INTERVAL 1 DAY)
-           AND published_at &lt; DATE_ADD(#{date}, INTERVAL 1 DAY)
+           AND published_at &lt; DATE_ADD(#{date}, INTERVAL 2 DAY)
            AND (
                 <foreach collection="keywords" item="kw" separator="OR">
                     title LIKE CONCAT('%', #{kw}, '%') OR content LIKE CONCAT('%', #{kw}, '%')
                 </foreach>
            )
-         ORDER BY published_at DESC
+         ORDER BY ABS(TIMESTAMPDIFF(MINUTE, published_at, #{closeAt}))
          LIMIT 5
     </select>
 

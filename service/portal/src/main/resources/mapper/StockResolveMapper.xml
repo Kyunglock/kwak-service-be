@@ -95,4 +95,14 @@
          LIMIT 1
     </select>
 
+    <!-- 정식 티커 → 한글명 (뉴스 검색 키워드용) -->
+    <select id="findKoreanNameByTicker" resultType="string">
+        SELECT company_name_ko
+          FROM tbl_companies
+         WHERE ticker = #{ticker}
+           AND company_name_ko IS NOT NULL
+           AND company_name_ko != ''
+         LIMIT 1
+    </select>
+
 </mapper>

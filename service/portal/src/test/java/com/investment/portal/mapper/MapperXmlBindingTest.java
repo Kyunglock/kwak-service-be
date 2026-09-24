@@ -65,6 +65,7 @@ class MapperXmlBindingTest {
                         "com.investment.portal.domain.repository.stock.StockPriceHistoryMapper.findClosestOnOrBefore",
                         "com.investment.portal.domain.repository.stock.StockPriceHistoryMapper.findPeriodHighDay",
                         "com.investment.portal.domain.repository.stock.StockPriceHistoryMapper.findPeriodLowDay",
-                        "com.investment.analyzer.market_analyzer.domain.repository.news.NewsMapper.findByDateAndKeyword");
+                        "com.investment.analyzer.market_analyzer.domain.repository.news.NewsMapper.findByDateAndKeyword",
+                        "com.investment.portal.domain.repository.stock.StockResolveMapper.findKoreanNameByTicker");
     }
 }
