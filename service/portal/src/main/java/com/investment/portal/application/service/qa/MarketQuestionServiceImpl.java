@@ -11,8 +11,10 @@ import com.investment.portal.domain.entity.history.stockPrice.StockPriceHistory;
 import com.investment.portal.domain.repository.stock.StockPriceHistoryMapper;
 import com.investment.portal.domain.repository.stock.StockRef;
 import kwak.common.ai.AiGatewayClient;
+import kwak.common.application.event.ActivityEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -35,6 +37,10 @@ public class MarketQuestionServiceImpl implements MarketQuestionService {
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy년 M월 d일");
 
+    static final String ACTION_TYPE = "AI_QA_ASK";
+    static final String TARGET_TYPE = "QUESTION_TYPE";
+    static final String OUTCOME_FAILED = "FAILED";
+
     private final AiGatewayClient aiGatewayClient;
     private final StockResolver stockResolver;
     private final PeriodHintResolver periodHintResolver;
@@ -42,9 +48,24 @@ public class MarketQuestionServiceImpl implements MarketQuestionService {
     private final StockPriceHistoryMapper stockPriceHistoryMapper;
     private final DividendHistoryMapper dividendHistoryMapper;
     private final MarketNewsLookupService marketNewsLookupService;
+    private final ApplicationEventPublisher eventPublisher;
 
+    /** 처리 결과(판정된 질문 유형, 장애면 FAILED)와 함께 질문 원문을 활동로그에 남긴다 —
+     * UNKNOWN 으로 떨어진 질문을 모아 봐야 지원 유형·트리거를 넓힐 근거가 생긴다. */
     @Override
-    public MarketQuestionResponse ask(MarketQuestionRequest request) {
+    public MarketQuestionResponse ask(String userId, MarketQuestionRequest request) {
+        String outcome = OUTCOME_FAILED;
+        try {
+            MarketQuestionResponse response = answer(request);
+            outcome = response.questionType();
+            return response;
+        } finally {
+            eventPublisher.publishEvent(ActivityEvent.of(
+                    userId, ACTION_TYPE, TARGET_TYPE, outcome, request.text()));
+        }
+    }
+
+    private MarketQuestionResponse answer(MarketQuestionRequest request) {
         ExtractedQuestionIntent extracted = intentParser.parse(
                 askLlm(QuestionIntentExtractionPrompt.SYSTEM, QuestionIntentExtractionPrompt.USER_PREFIX + request.text()));
         QuestionType type = QuestionType.fromRaw(extracted.questionType());

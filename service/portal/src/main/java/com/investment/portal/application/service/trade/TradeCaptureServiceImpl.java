@@ -43,6 +43,9 @@ public class TradeCaptureServiceImpl implements TradeCaptureService {
     /** 거래일 하한 — 오타로 1900년대가 들어오는 것을 막는다 */
     private static final LocalDate MIN_TRADE_DATE = LocalDate.of(1990, 1, 1);
 
+    static final String PROMPT_ACTION_TYPE = "AI_TRADE_CAPTURE";
+    static final String IMAGE_PROMPT_DETAIL = "[이미지 첨부]";
+
     private final PortfolioMapper portfolioMapper;
     private final TradeExtractionGateway extractionGateway;
     private final TradeExtractionParser parser;
@@ -56,6 +59,7 @@ public class TradeCaptureServiceImpl implements TradeCaptureService {
     @Override
     public TradeDraftResponse captureText(String userId, TradeCaptureTextRequest request) {
         requireOwnedPortfolio(userId, request.portfolioId());
+        recordPrompt(userId, request.portfolioId(), request.text());
 
         // 추출 경로(n8n / ai 모듈 직접)는 게이트웨이가 고른다
         String content = extractionGateway.extractFromText(request.text());
@@ -66,10 +70,17 @@ public class TradeCaptureServiceImpl implements TradeCaptureService {
     @Override
     public TradeDraftResponse captureImage(String userId, Long portfolioId, MultipartFile image) {
         requireOwnedPortfolio(userId, portfolioId);
+        recordPrompt(userId, portfolioId, IMAGE_PROMPT_DETAIL);
 
         String content = extractionGateway.extractFromImage(toImagePart(image));
 
         return buildDraft(userId, portfolioId, parser.parse(content));
+    }
+
+    /** 추출 전에 남긴다 — AI 호출이 실패한 입력도 기록에 있어야 원인을 되짚을 수 있다. */
+    private void recordPrompt(String userId, Long portfolioId, String detail) {
+        eventPublisher.publishEvent(ActivityEvent.of(
+                userId, PROMPT_ACTION_TYPE, "PORTFOLIO", String.valueOf(portfolioId), detail));
     }
 
     private TradeDraftResponse buildDraft(String userId, Long portfolioId, List<ExtractedTrade> extracted) {

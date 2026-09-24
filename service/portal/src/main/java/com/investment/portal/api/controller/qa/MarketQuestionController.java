@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -36,8 +37,10 @@ public class MarketQuestionController {
                     렌더할 수 있게 하기 위함입니다.
                     """)
     @PostMapping("/ask")
-    public ResponseEntity<?> ask(@Valid @RequestBody MarketQuestionRequest request) {
-        MarketQuestionResponse response = marketQuestionService.ask(request);
+    public ResponseEntity<?> ask(
+            @AuthenticationPrincipal String userId,
+            @Valid @RequestBody MarketQuestionRequest request) {
+        MarketQuestionResponse response = marketQuestionService.ask(userId, request);
         return ResponseUtil.success(response, "답변 생성 완료");
     }
 

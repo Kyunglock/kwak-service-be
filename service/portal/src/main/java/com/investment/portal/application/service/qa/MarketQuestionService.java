@@ -10,5 +10,5 @@ import com.investment.portal.application.dto.qa.MarketQuestionResponse;
  * "서술"에만 쓴다 — 실제 수치 계산은 전부 결정적인 코드/쿼리가 한다.
  */
 public interface MarketQuestionService {
-    MarketQuestionResponse ask(MarketQuestionRequest request);
+    MarketQuestionResponse ask(String userId, MarketQuestionRequest request);
 }

@@ -12,13 +12,16 @@ import com.investment.portal.domain.entity.history.stockPrice.StockPriceHistory;
 import com.investment.portal.domain.repository.stock.StockPriceHistoryMapper;
 import com.investment.portal.domain.repository.stock.StockRef;
 import kwak.common.ai.AiGatewayClient;
+import kwak.common.application.event.ActivityEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -39,11 +42,14 @@ import static org.mockito.Mockito.when;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class MarketQuestionServiceTest {
 
+    private static final String USER = "user-1";
+
     @Mock AiGatewayClient aiGatewayClient;
     @Mock StockResolver stockResolver;
     @Mock StockPriceHistoryMapper stockPriceHistoryMapper;
     @Mock DividendHistoryMapper dividendHistoryMapper;
     @Mock MarketNewsLookupService marketNewsLookupService;
+    @Mock ApplicationEventPublisher eventPublisher;
 
     private MarketQuestionServiceImpl service;
 
@@ -54,7 +60,7 @@ class MarketQuestionServiceTest {
         service = new MarketQuestionServiceImpl(
                 aiGatewayClient, stockResolver, new PeriodHintResolver(),
                 new QuestionIntentParser(new ObjectMapper()),
-                stockPriceHistoryMapper, dividendHistoryMapper, marketNewsLookupService);
+                stockPriceHistoryMapper, dividendHistoryMapper, marketNewsLookupService, eventPublisher);
     }
 
     private void stubIntent(String questionType, String stockName, String periodHint) {
@@ -93,7 +99,7 @@ class MarketQuestionServiceTest {
         when(marketNewsLookupService.findNewsForDate(eq("AAPL"), eq("애플"), eq(LocalDate.of(2026, 3, 11))))
                 .thenReturn(List.of(MarketNewsRow.builder().title("Apple 급락").source("Reuters").build()));
 
-        MarketQuestionResponse res = service.ask(new MarketQuestionRequest("올해 애플 가장 많이 하락했던 날 무슨 일이 있었는지"));
+        MarketQuestionResponse res = service.ask(USER, new MarketQuestionRequest("올해 애플 가장 많이 하락했던 날 무슨 일이 있었는지"));
 
         assertThat(res.questionType()).isEqualTo("MAX_DROP_DAY");
         assertThat(res.stockNm()).isEqualTo("애플");
@@ -116,7 +122,7 @@ class MarketQuestionServiceTest {
                         .build()));
         when(marketNewsLookupService.findNewsForDate(any(), any(), any())).thenReturn(List.of());
 
-        MarketQuestionResponse res = service.ask(new MarketQuestionRequest("삼성전자 최근 3개월 중 제일 오른 날"));
+        MarketQuestionResponse res = service.ask(USER, new MarketQuestionRequest("삼성전자 최근 3개월 중 제일 오른 날"));
 
         assertThat(res.questionType()).isEqualTo("MAX_GAIN_DAY");
         verify(stockPriceHistoryMapper).findMaxChangeDay(eq("005930.KS"), any(), any(), eq("GAIN"));
@@ -133,7 +139,7 @@ class MarketQuestionServiceTest {
         when(stockPriceHistoryMapper.findClosestOnOrBefore(eq("TSLA"), any()))
                 .thenReturn(Optional.of(priceRow("TSLA", LocalDate.of(2026, 3, 11), "240")));
 
-        MarketQuestionResponse res = service.ask(new MarketQuestionRequest("테슬라 올해 수익률 얼마야?"));
+        MarketQuestionResponse res = service.ask(USER, new MarketQuestionRequest("테슬라 올해 수익률 얼마야?"));
 
         assertThat(res.questionType()).isEqualTo("PERIOD_RETURN");
         // 뉴스 조회는 가격 변동일이 아닌 질문 유형이라 호출되지 않는다
@@ -151,7 +157,7 @@ class MarketQuestionServiceTest {
         when(stockPriceHistoryMapper.findPeriodLowDay(eq("NVDA"), any(), any()))
                 .thenReturn(Optional.of(priceRow("NVDA", LocalDate.of(2026, 2, 1), "110")));
 
-        MarketQuestionResponse res = service.ask(new MarketQuestionRequest("엔비디아 올해 최고가 최저가"));
+        MarketQuestionResponse res = service.ask(USER, new MarketQuestionRequest("엔비디아 올해 최고가 최저가"));
 
         assertThat(res.questionType()).isEqualTo("PERIOD_HIGH_LOW");
     }
@@ -167,7 +173,7 @@ class MarketQuestionServiceTest {
                         .stockCd("KO").exDate(LocalDate.of(2026, 2, 1)).dividend(new BigDecimal("0.48"))
                         .build()));
 
-        MarketQuestionResponse res = service.ask(new MarketQuestionRequest("코카콜라 최근 배당 얼마씩 줬어"));
+        MarketQuestionResponse res = service.ask(USER, new MarketQuestionRequest("코카콜라 최근 배당 얼마씩 줬어"));
 
         assertThat(res.questionType()).isEqualTo("DIVIDEND_SUMMARY");
         verify(dividendHistoryMapper).findRecentByStockCd("KO", 8);
@@ -180,7 +186,7 @@ class MarketQuestionServiceTest {
     void 질문유형이_UNKNOWN이면_아무것도_조회하지_않고_안내문구로_끝난다() {
         stubIntent("UNKNOWN", null, null);
 
-        MarketQuestionResponse res = service.ask(new MarketQuestionRequest("오늘 날씨 어때"));
+        MarketQuestionResponse res = service.ask(USER, new MarketQuestionRequest("오늘 날씨 어때"));
 
         assertThat(res.questionType()).isEqualTo("UNKNOWN");
         assertThat(res.answer()).contains("이해하지 못했");
@@ -193,7 +199,7 @@ class MarketQuestionServiceTest {
         when(stockResolver.resolve("듣보잡종목", null))
                 .thenReturn(new StockResolver.Resolution(null, null, List.of()));
 
-        MarketQuestionResponse res = service.ask(new MarketQuestionRequest("듣보잡종목 올해 가장 하락한 날"));
+        MarketQuestionResponse res = service.ask(USER, new MarketQuestionRequest("듣보잡종목 올해 가장 하락한 날"));
 
         assertThat(res.answer()).contains("찾지 못했어요");
         verifyNoInteractions(stockPriceHistoryMapper, marketNewsLookupService);
@@ -205,7 +211,7 @@ class MarketQuestionServiceTest {
         when(stockResolver.resolve("삼성", null)).thenReturn(new StockResolver.Resolution(
                 null, null, List.of(new StockRef("005930.KS", "삼성전자"), new StockRef("006400.KS", "삼성SDI"))));
 
-        MarketQuestionResponse res = service.ask(new MarketQuestionRequest("삼성 올해 가장 하락한 날"));
+        MarketQuestionResponse res = service.ask(USER, new MarketQuestionRequest("삼성 올해 가장 하락한 날"));
 
         assertThat(res.answer()).contains("삼성전자").contains("삼성SDI");
         verifyNoInteractions(stockPriceHistoryMapper);
@@ -219,7 +225,7 @@ class MarketQuestionServiceTest {
         when(stockPriceHistoryMapper.findMaxChangeDay(eq("AAPL"), any(), any(), eq("DROP")))
                 .thenReturn(Optional.empty());
 
-        MarketQuestionResponse res = service.ask(new MarketQuestionRequest("올해 애플 가장 하락한 날"));
+        MarketQuestionResponse res = service.ask(USER, new MarketQuestionRequest("올해 애플 가장 하락한 날"));
 
         assertThat(res.answer()).contains("찾지 못했어요");
         verifyNoInteractions(marketNewsLookupService);
@@ -238,7 +244,7 @@ class MarketQuestionServiceTest {
                         .changePct(new BigDecimal("-5.0")).build()));
         when(marketNewsLookupService.findNewsForDate(any(), any(), any())).thenReturn(List.of());
 
-        MarketQuestionResponse res = service.ask(new MarketQuestionRequest("올해 애플 가장 하락한 날"));
+        MarketQuestionResponse res = service.ask(USER, new MarketQuestionRequest("올해 애플 가장 하락한 날"));
 
         assertThat(res.answer()).contains("찾지 못했습니다");
     }
@@ -248,7 +254,7 @@ class MarketQuestionServiceTest {
         when(aiGatewayClient.chat(eq(QuestionIntentExtractionPrompt.SYSTEM), anyString()))
                 .thenThrow(new RuntimeException("connection refused"));
 
-        assertThatThrownBy(() -> service.ask(new MarketQuestionRequest("올해 애플 가장 하락한 날")))
+        assertThatThrownBy(() -> service.ask(USER, new MarketQuestionRequest("올해 애플 가장 하락한 날")))
                 .isInstanceOf(MarketQuestionUnavailableException.class);
     }
 
@@ -266,8 +272,57 @@ class MarketQuestionServiceTest {
         when(aiGatewayClient.chat(eq(MarketAnswerPrompt.SYSTEM), anyString()))
                 .thenThrow(new RuntimeException("ai down"));
 
-        assertThatThrownBy(() -> service.ask(new MarketQuestionRequest("올해 애플 가장 하락한 날")))
+        assertThatThrownBy(() -> service.ask(USER, new MarketQuestionRequest("올해 애플 가장 하락한 날")))
                 .isInstanceOf(MarketQuestionUnavailableException.class);
+    }
+
+    // ── 프롬프트 활동로그 ────────────────────────────────────────────────────────
+
+    private ActivityEvent publishedEvent() {
+        ArgumentCaptor<ActivityEvent> captor = ArgumentCaptor.forClass(ActivityEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        return captor.getValue();
+    }
+
+    @Test
+    void 질문_원문과_판정된_질문유형이_활동로그로_남는다() {
+        stubIntent("DIVIDEND_SUMMARY", "코카콜라", "최근");
+        when(stockResolver.resolve("코카콜라", null))
+                .thenReturn(new StockResolver.Resolution("KO", "코카콜라", List.of()));
+        when(dividendHistoryMapper.findRecentByStockCd("KO", 8)).thenReturn(List.of());
+
+        service.ask(USER, new MarketQuestionRequest("코카콜라 최근 배당 얼마씩 줬어"));
+
+        ActivityEvent event = publishedEvent();
+        assertThat(event.userId()).isEqualTo(USER);
+        assertThat(event.actionType()).isEqualTo("AI_QA_ASK");
+        assertThat(event.targetType()).isEqualTo("QUESTION_TYPE");
+        assertThat(event.targetId()).isEqualTo("DIVIDEND_SUMMARY");
+        assertThat(event.detail()).isEqualTo("코카콜라 최근 배당 얼마씩 줬어");
+    }
+
+    @Test
+    void 이해하지_못한_질문도_UNKNOWN으로_활동로그에_남는다() {
+        stubIntent("UNKNOWN", null, null);
+
+        service.ask(USER, new MarketQuestionRequest("오늘 날씨 어때"));
+
+        ActivityEvent event = publishedEvent();
+        assertThat(event.targetId()).isEqualTo("UNKNOWN");
+        assertThat(event.detail()).isEqualTo("오늘 날씨 어때");
+    }
+
+    @Test
+    void AI_장애로_실패한_질문도_FAILED로_활동로그에_남는다() {
+        when(aiGatewayClient.chat(eq(QuestionIntentExtractionPrompt.SYSTEM), anyString()))
+                .thenThrow(new RuntimeException("connection refused"));
+
+        assertThatThrownBy(() -> service.ask(USER, new MarketQuestionRequest("올해 애플 가장 하락한 날")))
+                .isInstanceOf(MarketQuestionUnavailableException.class);
+
+        ActivityEvent event = publishedEvent();
+        assertThat(event.targetId()).isEqualTo("FAILED");
+        assertThat(event.detail()).isEqualTo("올해 애플 가장 하락한 날");
     }
 
     private StockPriceHistory priceRow(String stockCd, LocalDate dt, String close) {
