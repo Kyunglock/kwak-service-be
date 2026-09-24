@@ -91,6 +91,49 @@ class TradeCaptureServiceTest {
         verifyNoInteractions(extractionGateway);
     }
 
+    // ── 프롬프트 활동로그 ────────────────────────────────────────────────────────
+
+    @Test
+    void 입력한_문장이_AI_호출_전에_활동로그로_남는다() {
+        when(extractionGateway.extractFromText(anyString())).thenThrow(new TradeCaptureUnavailableException(null));
+
+        assertThatThrownBy(() -> service.captureText(USER, textRequest("애플 10주 230에 샀어")))
+                .isInstanceOf(TradeCaptureUnavailableException.class);
+
+        ArgumentCaptor<ActivityEvent> event = ArgumentCaptor.forClass(ActivityEvent.class);
+        verify(eventPublisher).publishEvent(event.capture());
+        assertThat(event.getValue().userId()).isEqualTo(USER);
+        assertThat(event.getValue().actionType()).isEqualTo("AI_TRADE_CAPTURE");
+        assertThat(event.getValue().targetId()).isEqualTo(String.valueOf(PORTFOLIO_ID));
+        assertThat(event.getValue().detail()).isEqualTo("애플 10주 230에 샀어");
+    }
+
+    @Test
+    void 이미지_입력은_이미지_첨부로_활동로그에_남는다() {
+        aiReturns("{\"trades\":[]}");
+        MockMultipartFile png = new MockMultipartFile(
+                "image", "a.png", "image/png", new byte[]{1, 2, 3, 4});
+
+        service.captureImage(USER, PORTFOLIO_ID, png);
+
+        ArgumentCaptor<ActivityEvent> event = ArgumentCaptor.forClass(ActivityEvent.class);
+        verify(eventPublisher).publishEvent(event.capture());
+        assertThat(event.getValue().actionType()).isEqualTo("AI_TRADE_CAPTURE");
+        assertThat(event.getValue().detail()).isEqualTo("[이미지 첨부]");
+    }
+
+    @Test
+    void 남의_포트폴리오_요청은_활동로그를_남기지_않는다() {
+        Portfolio others = Portfolio.builder()
+                .portfolioId(99L).userId(OTHER_USER).build();
+        when(portfolioMapper.findByPortfolioId(99L)).thenReturn(others);
+
+        assertThatThrownBy(() -> service.captureText(USER, new TradeCaptureTextRequest(99L, "애플 1주")))
+                .isInstanceOf(PortfolioAccessDeniedException.class);
+
+        verifyNoInteractions(eventPublisher);
+    }
+
     @Test
     void 존재하지_않는_포트폴리오도_거부된다() {
         when(portfolioMapper.findByPortfolioId(404L)).thenReturn(null);

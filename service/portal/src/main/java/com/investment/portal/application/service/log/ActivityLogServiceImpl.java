@@ -23,7 +23,7 @@ public class ActivityLogServiceImpl implements ActivityLogService {
                 .actionType(e.actionType())
                 .targetType(e.targetType())
                 .targetId(e.targetId())
-                .detail(e.detail())
+                .detail(truncate(e.detail(), 1000))
                 .ip(truncate(e.ip(), 45))
                 .userAgent(truncate(e.userAgent(), 255))
                 .build();

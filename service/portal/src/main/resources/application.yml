@@ -46,6 +46,11 @@ jwt:
 ai:
   base-url: ${AI_URI:http://localhost:8090}
 
+collector:
+  # 시황 질의응답의 온디맨드 뉴스 크롤링(CollectorGatewayClient)이 호출한다.
+  # 지금까지 COLLECTOR_URI 는 n8n 전용 env 였고 Spring 프로퍼티로는 안 잡혀 있었다.
+  base-url: ${COLLECTOR_URI:http://localhost:8000}
+
 trade:
   extraction:
     n8n:
