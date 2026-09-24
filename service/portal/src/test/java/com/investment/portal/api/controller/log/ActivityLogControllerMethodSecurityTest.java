@@ -27,14 +27,14 @@ class ActivityLogControllerMethodSecurityTest {
     @Test
     @WithMockUser(roles = "USER")
     void ROLE_USER는_allLogs_접근시_AccessDeniedException() {
-        assertThatThrownBy(() -> controller.allLogs(null, null, 0, 20))
+        assertThatThrownBy(() -> controller.allLogs(null, null, null, 0, 20))
                 .isInstanceOf(AccessDeniedException.class);
     }
 
     @Test
     @WithMockUser(roles = "ADMIN")
     void ROLE_ADMIN은_allLogs_접근_허용() {
-        assertThatCode(() -> controller.allLogs(null, null, 0, 20))
+        assertThatCode(() -> controller.allLogs("admin-1", null, null, 0, 20))
                 .doesNotThrowAnyException();
     }
 

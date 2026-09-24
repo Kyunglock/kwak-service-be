@@ -40,14 +40,17 @@ public class ActivityLogController {
         return ResponseUtil.success(Map.of("isAdmin", isAdmin));
     }
 
-    @Operation(summary = "전체 활동 로그(관리자)", description = "관리자만 전체 사용자 활동을 조회합니다")
+    @Operation(summary = "전체 활동 로그(관리자)",
+            description = "관리자가 전체 사용자 활동을 조회합니다. targetUserId로 자기 자신을 "
+                    + "콕 집어 조회한 게 아니라면 관리자 본인의 활동은 결과에서 빠집니다.")
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping
     public ResponseEntity<?> allLogs(
+            @AuthenticationPrincipal String userId,
             @RequestParam(required = false) String targetUserId,
             @RequestParam(required = false) String actionType,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ResponseUtil.success(activityLogService.search(targetUserId, actionType, page, size));
+        return ResponseUtil.success(activityLogService.search(userId, targetUserId, actionType, page, size));
     }
 }
