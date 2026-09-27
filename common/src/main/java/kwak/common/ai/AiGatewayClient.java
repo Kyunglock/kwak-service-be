@@ -37,6 +37,18 @@ public class AiGatewayClient {
         this.webClient = WebClient.builder().baseUrl(baseUrl).build();
     }
 
+    /**
+     * 응답 본문에서 content 를 꺼낸다.
+     *
+     * <p>{@code String.valueOf(null)} 은 문자열 "null" 을 돌려준다. 그대로 흘리면 호출부가
+     * 추출 0건으로 읽어, 모델이 아무것도 못 내놓은 실패가 "매매 내역이 없다"는 정상 결과로
+     * 둔갑한다. null 은 null 로 유지한다.
+     */
+    private static String content(Map<?, ?> res) {
+        Object value = res.get("content");
+        return value == null ? null : String.valueOf(value);
+    }
+
     /** kwakai 로컬 LLM generate → 텍스트 */
     public String generateContent(String system, String user) {
         Map<?, ?> res = webClient.post()
@@ -47,7 +59,7 @@ public class AiGatewayClient {
                 .retrieve()
                 .bodyToMono(Map.class)
                 .block(Duration.ofSeconds(120));
-        return res == null ? null : String.valueOf(res.get("content"));
+        return res == null ? null : content(res);
     }
 
     /** 구조화 응답(JSON)을 기대하는 호출 → content + 토큰수 */
@@ -62,7 +74,7 @@ public class AiGatewayClient {
                 .block(Duration.ofSeconds(120));
         if (res == null) return new ChatResponse(null, 0, 0);
         return new ChatResponse(
-                String.valueOf(res.get("content")),
+                content(res),
                 res.get("promptTokens") == null ? 0 : ((Number) res.get("promptTokens")).intValue(),
                 res.get("completionTokens") == null ? 0 : ((Number) res.get("completionTokens")).intValue());
     }
@@ -87,7 +99,7 @@ public class AiGatewayClient {
                 .block(VISION_TIMEOUT);
         if (res == null) return new ChatResponse(null, 0, 0);
         return new ChatResponse(
-                String.valueOf(res.get("content")),
+                content(res),
                 res.get("promptTokens") == null ? 0 : ((Number) res.get("promptTokens")).intValue(),
                 res.get("completionTokens") == null ? 0 : ((Number) res.get("completionTokens")).intValue());
     }

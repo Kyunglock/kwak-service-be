@@ -493,6 +493,141 @@ class TradeCaptureServiceTest {
         assertThat(captor.getValue().transType()).isEqualTo("SELL");
     }
 
+    // ── 화면 캡처 (잔고 화면) ────────────────────────────────────────────────────
+
+    private MockMultipartFile screenshot() {
+        return new MockMultipartFile("image", "balance.png", "image/png", new byte[]{1, 2, 3, 4});
+    }
+
+    @Test
+    void 잔고_화면은_빈_배열이_아니라_보유종목으로_읽힌다() {
+        // 키움 해외잔고 캡처 — 한 종목이 두 줄(매입/평가)로 나뉘어 있는 화면
+        aiReturns("""
+                {"screenType":"BALANCE","trades":[
+                  {"name":"알파벳 C","ticker":"GOOG","type":"BUY","qty":9,
+                   "price":343.0188,"amount":3087.17,"date":null,"currency":null}
+                ]}
+                """);
+        resolves("GOOG", "Alphabet Inc. Class C");
+
+        TradeDraftResponse draft = service.captureImage(USER, PORTFOLIO_ID, screenshot());
+
+        assertThat(draft.items()).hasSize(1);
+        assertThat(draft.notice()).contains("잔고 화면");
+        assertThat(draft.items().get(0).stockCd()).isEqualTo("GOOG");
+        assertThat(draft.items().get(0).qty()).isEqualByComparingTo("9");
+        assertThat(draft.items().get(0).price()).isEqualByComparingTo("343.0188");
+    }
+
+    @Test
+    void 화면에_매입일이_없으면_오늘로_채우지_않고_묻는다() {
+        // 몇 달 전에 산 종목을 오늘 매수로 박으면 보유기간과 수익률이 통째로 틀어진다
+        aiReturns("""
+                {"screenType":"BALANCE","trades":[
+                  {"name":"모더나","ticker":"MRNA","type":"BUY","qty":1,"price":161.31,
+                   "amount":161.31,"date":null,"currency":null}
+                ]}
+                """);
+        resolves("MRNA", "Moderna Inc.");
+
+        TradeDraftItem item = service.captureImage(USER, PORTFOLIO_ID, screenshot()).items().get(0);
+
+        assertThat(item.status()).isEqualTo("NEEDS_DATE");
+        assertThat(item.transDt()).isNull();
+        assertThat(item.issue()).contains("매입일");
+    }
+
+    @Test
+    void 화면에_날짜가_있으면_그대로_READY가_된다() {
+        aiReturns("""
+                {"screenType":"EXECUTION","trades":[
+                  {"name":"애플","ticker":"AAPL","type":"BUY","qty":10,"price":230.15,
+                   "amount":2301.5,"date":"%s","currency":"USD"}
+                ]}
+                """.formatted(TODAY.minusDays(3)));
+        resolves("AAPL", "Apple Inc.");
+
+        TradeDraftItem item = service.captureImage(USER, PORTFOLIO_ID, screenshot()).items().get(0);
+
+        assertThat(item.status()).isEqualTo("READY");
+        assertThat(item.transDt()).isEqualTo(TODAY.minusDays(3));
+    }
+
+    @Test
+    void 단가가_총액과_어긋나면_저장하지_않고_역산값을_제시한다() {
+        // 매입금액(3,087.17) 옆에 현재가(339.73)를 집어온 경우 — 잔고 화면의 전형적인 오독이다.
+        // 두 값 중 어느 쪽이 틀렸는지 단정할 수 없으므로 고쳐 넣지 않고 사용자에게 묻는다.
+        aiReturns("""
+                {"screenType":"BALANCE","trades":[
+                  {"name":"알파벳 C","ticker":"GOOG","type":"BUY","qty":9,
+                   "price":339.73,"amount":3087.17,"date":"%s","currency":"USD"}
+                ]}
+                """.formatted(TODAY));
+        resolves("GOOG", "Alphabet Inc. Class C");
+
+        TradeDraftItem item = service.captureImage(USER, PORTFOLIO_ID, screenshot()).items().get(0);
+
+        assertThat(item.status()).isEqualTo("NEEDS_INPUT");
+        assertThat(item.issue()).contains("맞지 않습니다").contains("343.0189");
+        assertThat(item.price()).isEqualByComparingTo("339.73"); // 읽은 값은 그대로 보여준다
+    }
+
+    @Test
+    void 반올림_수준의_차이는_어긋난_것으로_보지_않는다() {
+        aiReturns("""
+                {"screenType":"BALANCE","trades":[
+                  {"name":"애플","ticker":"AAPL","type":"BUY","qty":3,"price":230.15,
+                   "amount":690.44,"date":"%s","currency":"USD"}
+                ]}
+                """.formatted(TODAY));
+        resolves("AAPL", "Apple Inc.");
+
+        assertThat(service.captureImage(USER, PORTFOLIO_ID, screenshot()).items().get(0).status())
+                .isEqualTo("READY");
+    }
+
+    // ── 통화 ─────────────────────────────────────────────────────────────────────
+
+    @Test
+    void 해외종목에_KRW가_붙어오면_USD로_바로잡는다() {
+        // 해외잔고 화면은 상단 합계가 '원'이라 모델이 표의 달러까지 KRW로 적어 올린다.
+        // 그대로 두면 343달러짜리가 343원으로 기록된다.
+        aiReturns("""
+                {"screenType":"BALANCE","trades":[
+                  {"name":"알파벳 A","ticker":"GOOGL","type":"BUY","qty":20,"price":353.96,
+                   "amount":7079.2,"date":"%s","currency":"KRW"}
+                ]}
+                """.formatted(TODAY));
+        resolves("GOOGL", "Alphabet Inc. Class A");
+
+        assertThat(service.captureImage(USER, PORTFOLIO_ID, screenshot()).items().get(0).currency())
+                .isEqualTo("USD");
+    }
+
+    @Test
+    void 국내종목은_USD로_읽혀도_KRW로_바로잡는다() {
+        aiReturns("""
+                {"trades":[{"name":"삼성전자","type":"BUY","qty":5,"price":71000,
+                            "amount":355000,"date":"%s","currency":"USD"}]}
+                """.formatted(TODAY));
+        resolves("005930.KS", "삼성전자");
+
+        assertThat(service.captureText(USER, textRequest("삼성전자 5주")).items().get(0).currency())
+                .isEqualTo("KRW");
+    }
+
+    @Test
+    void 종목을_확정하지_못하면_통화는_읽은_값을_그대로_둔다() {
+        aiReturns("""
+                {"trades":[{"name":"뭔가","type":"BUY","qty":1,"price":1,"currency":"KRW"}]}
+                """);
+        when(stockResolver.resolve(any(), any()))
+                .thenReturn(StockResolverFixtures.unresolved(List.of()));
+
+        assertThat(service.captureText(USER, textRequest("뭔가 1주")).items().get(0).currency())
+                .isEqualTo("KRW");
+    }
+
     /** Resolution 은 정적 팩터리가 package-private 이라 테스트 전용 헬퍼로 감싼다. */
     static final class StockResolverFixtures {
         static StockResolver.Resolution resolved(String stockCd, String stockNm) {

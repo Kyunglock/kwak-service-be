@@ -14,10 +14,13 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 /**
- * LLM 응답(JSON)을 {@link ExtractedTrade} 목록으로 바꾼다.
+ * LLM 응답(JSON)을 {@link TradeExtraction} 으로 바꾼다.
  *
  * <p>LLM 출력은 형식이 어긋나는 것을 전제로 다룬다. 한 줄이 깨졌다고 전체를 버리지 않고
  * 그 줄만 건너뛴다 — 스크린샷 10건 중 1건이 흐릿했다고 나머지 9건을 날릴 이유가 없다.
+ *
+ * <p>추출이 0건으로 끝나면 원문을 로그에 남긴다. 0건은 "화면에 매매가 없었다"일 수도,
+ * "모델이 형식을 어겼다"일 수도 있는데, 원문이 없으면 둘을 영영 구분할 수 없다.
  */
 @Slf4j
 @Component
@@ -29,6 +32,10 @@ public class TradeExtractionParser {
     /** 숫자만 남기기 위해 제거할 문자 (쉼표, 통화기호, 공백, 단위) */
     private static final Pattern NON_NUMERIC = Pattern.compile("[^0-9.\\-]");
 
+    /** 추론 흔적을 내보내는 모델 대비 — 그 안의 중괄호에 파서가 끌려가면 안 된다. */
+    private static final Pattern THINK_BLOCK =
+            Pattern.compile("<think>.*?</think>", Pattern.DOTALL | Pattern.CASE_INSENSITIVE);
+
     private static final DateTimeFormatter[] DATE_FORMATS = {
             DateTimeFormatter.ISO_LOCAL_DATE,
             DateTimeFormatter.ofPattern("yyyy/MM/dd"),
@@ -38,10 +45,11 @@ public class TradeExtractionParser {
 
     private final ObjectMapper objectMapper;
 
-    public List<ExtractedTrade> parse(String llmContent) {
-        String json = stripFence(llmContent);
+    public TradeExtraction parse(String llmContent) {
+        String json = extractJson(llmContent);
         if (json == null || json.isBlank()) {
-            return List.of();
+            log.warn("[TradeCapture] 응답에서 JSON 객체를 찾지 못함: {}", abbreviate(llmContent));
+            return TradeExtraction.empty();
         }
 
         JsonNode root;
@@ -49,13 +57,15 @@ public class TradeExtractionParser {
             root = objectMapper.readTree(json);
         } catch (Exception e) {
             log.warn("[TradeCapture] LLM 응답 JSON 파싱 실패: {}", abbreviate(json), e);
-            return List.of();
+            return TradeExtraction.empty();
         }
+
+        String screenType = screenType(root);
 
         JsonNode trades = root.path("trades");
         if (!trades.isArray()) {
             log.warn("[TradeCapture] trades 배열이 없음: {}", abbreviate(json));
-            return List.of();
+            return new TradeExtraction(screenType, List.of());
         }
 
         List<ExtractedTrade> result = new ArrayList<>();
@@ -69,7 +79,27 @@ public class TradeExtractionParser {
                 result.add(trade);
             }
         }
-        return result;
+
+        if (result.isEmpty()) {
+            // 0건은 정상 결과일 수도 실패일 수도 있다. 원인을 되짚으려면 원문이 남아 있어야 한다.
+            log.warn("[TradeCapture] 추출 0건 - screenType: {}, 원문: {}", screenType, abbreviate(json));
+        } else {
+            log.debug("[TradeCapture] 추출 {}건 - screenType: {}", result.size(), screenType);
+        }
+        return new TradeExtraction(screenType, result);
+    }
+
+    private String screenType(JsonNode root) {
+        String raw = root.path("screenType").asText(null);
+        if (raw == null || raw.isBlank()) {
+            // screenType 을 안 준 모델도 있다. 추출된 게 있으면 체결내역으로 보고 진행한다.
+            return TradeExtraction.EXECUTION;
+        }
+        String upper = raw.trim().toUpperCase();
+        return switch (upper) {
+            case TradeExtraction.BALANCE, TradeExtraction.EXECUTION, TradeExtraction.NONE -> upper;
+            default -> TradeExtraction.EXECUTION;
+        };
     }
 
     private ExtractedTrade toTrade(JsonNode node) {
@@ -104,18 +134,70 @@ public class TradeExtractionParser {
         );
     }
 
-    /** 모델이 마크다운 코드블록으로 감싸는 경우 대비 — 첫 '{' 부터 마지막 '}' 까지만 취한다. */
-    private String stripFence(String content) {
+    /**
+     * 응답 문자열에서 JSON 객체를 꺼낸다.
+     *
+     * <p>예전에는 첫 '{' 부터 마지막 '}' 까지를 통째로 잘랐다. 모델이 설명을 붙이거나
+     * 추론 블록을 내보내면 그 안의 중괄호까지 끌려들어와 JSON 전체가 깨졌고, 그러면
+     * 제대로 읽어낸 표까지 통째로 버려졌다. 지금은 중괄호 균형을 세어 온전한 객체만 집는다.
+     */
+    private String extractJson(String content) {
         if (content == null) {
             return null;
         }
-        String trimmed = content.trim();
-        int start = trimmed.indexOf('{');
-        int end = trimmed.lastIndexOf('}');
-        if (start < 0 || end < start) {
+        String text = THINK_BLOCK.matcher(content).replaceAll(" ").trim();
+        if (text.isEmpty()) {
             return null;
         }
-        return trimmed.substring(start, end + 1);
+
+        String fallback = null;
+        for (int i = text.indexOf('{'); i >= 0; i = text.indexOf('{', i + 1)) {
+            String candidate = balancedObject(text, i);
+            if (candidate == null) {
+                // 여기서부터는 닫히지 않는다 — 응답이 중간에 잘린 경우가 대부분이다
+                log.warn("[TradeCapture] 응답이 중간에 잘린 것으로 보임 (길이 {})", text.length());
+                break;
+            }
+            if (candidate.contains("\"trades\"")) {
+                return candidate;
+            }
+            if (fallback == null) {
+                fallback = candidate;
+            }
+        }
+        return fallback;
+    }
+
+    /** start 위치의 '{' 와 짝이 맞는 '}' 까지 잘라낸다. 끝까지 안 닫히면 null. */
+    private String balancedObject(String text, int start) {
+        int depth = 0;
+        boolean inString = false;
+        boolean escaped = false;
+
+        for (int i = start; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (inString) {
+                if (escaped) {
+                    escaped = false;
+                } else if (c == '\\') {
+                    escaped = true;
+                } else if (c == '"') {
+                    inString = false;
+                }
+                continue;
+            }
+            if (c == '"') {
+                inString = true;
+            } else if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth--;
+                if (depth == 0) {
+                    return text.substring(start, i + 1);
+                }
+            }
+        }
+        return null;
     }
 
     private String text(JsonNode node, String field) {
@@ -197,6 +279,9 @@ public class TradeExtractionParser {
     }
 
     private String abbreviate(String s) {
+        if (s == null) {
+            return "(없음)";
+        }
         return s.length() <= 300 ? s : s.substring(0, 300) + "...";
     }
 }

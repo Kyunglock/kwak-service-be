@@ -121,12 +121,35 @@ class TradeExtractionGatewayTest {
                 eq(TradeExtractionPrompt.SYSTEM), anyString(), eq(List.of(IMAGE)));
     }
 
+    // ── 빈 응답 ──────────────────────────────────────────────────────────────────
+
     @Test
-    void ai모듈이_null을_돌려주면_그대로_전달한다() {
-        // 파서가 빈 목록으로 처리하고 "매매 내역을 찾지 못했습니다"로 안내한다
+    void ai모듈이_빈_응답을_주면_실패로_다룬다() {
+        // 예전에는 null 을 그대로 흘려 "매매 내역을 찾지 못했습니다"로 안내했다.
+        // 모델이 아무것도 못 내놓은 것과 화면에 매매가 없는 것이 같은 문구로 보이면
+        // 사용자도, 로그를 보는 사람도 원인을 구분할 수 없다.
         when(aiGatewayClient.chat(anyString(), anyString()))
                 .thenReturn(new AiGatewayClient.ChatResponse(null, 0, 0));
 
-        assertThat(gateway(false).extractFromText("안녕")).isNull();
+        assertThatThrownBy(() -> gateway(false).extractFromText("안녕"))
+                .isInstanceOf(TradeCaptureUnavailableException.class);
+    }
+
+    @Test
+    void 이미지_응답이_비어_있어도_실패로_다룬다() {
+        when(aiGatewayClient.vision(anyString(), anyString(), anyList()))
+                .thenReturn(new AiGatewayClient.ChatResponse("   ", 0, 0));
+
+        assertThatThrownBy(() -> gateway(false).extractFromImage(IMAGE))
+                .isInstanceOf(TradeCaptureUnavailableException.class);
+    }
+
+    @Test
+    void ai모듈이_비면_n8n_결과가_있으면_그쪽을_쓴다() {
+        when(n8nClient.extract(anyString(), isNull())).thenReturn(N8N_RESULT);
+
+        assertThat(gateway(true).extractFromText("애플 1주")).isEqualTo(N8N_RESULT);
+
+        verifyNoInteractions(aiGatewayClient);
     }
 }

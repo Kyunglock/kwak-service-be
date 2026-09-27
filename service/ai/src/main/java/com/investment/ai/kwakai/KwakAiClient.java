@@ -56,6 +56,11 @@ public class KwakAiClient {
                 .build();
         log.info("[KwakAI] 연결 대상: {}, 모델: {}, 비전 모델: {}, json-mode: {}",
                 baseUrl, defaultModel, this.visionModel, jsonMode);
+        if (visionModel == null || visionModel.isBlank()) {
+            // 이미지 추출이 통째로 실패하는 가장 흔한 원인이다. 기동 로그에서 바로 보이게 남긴다.
+            log.warn("[KwakAI] KWAKAI_VISION_MODEL 이 비어 있어 이미지 추론도 기본 모델({})로 갑니다. "
+                    + "이 모델이 멀티모달이 아니면 화면 캡처 추출은 매번 실패합니다.", defaultModel);
+        }
     }
 
     /** 구조화 추출용 호출 결과. 토큰 수는 서버가 usage 를 안 주면 0. */

@@ -24,7 +24,7 @@ public record TradeDraftItem(
         @Schema(description = "거래유형", example = "BUY", allowableValues = {"BUY", "SELL"})
         String transType,
 
-        @Schema(description = "거래일자", example = "2026-09-18")
+        @Schema(description = "거래일자. 화면 캡처에 매입일이 없으면 null (NEEDS_DATE)", example = "2026-09-18")
         LocalDate transDt,
 
         @Schema(description = "수량", example = "10")
@@ -37,7 +37,7 @@ public record TradeDraftItem(
         String currency,
 
         @Schema(description = "상태", example = "READY",
-                allowableValues = {"READY", "NEEDS_STOCK", "NEEDS_INPUT"})
+                allowableValues = {"READY", "NEEDS_STOCK", "NEEDS_INPUT", "NEEDS_DATE"})
         String status,
 
         @Schema(description = "사용자에게 보여줄 확인 요청 사유. 없으면 null", example = "날짜가 없어 오늘로 넣었습니다")

@@ -73,7 +73,18 @@ public class TradeExtractionGateway {
         }
     }
 
+    /**
+     * 빈 응답은 실패로 다룬다.
+     *
+     * <p>content 가 없는 응답을 그대로 흘리면 파서가 0건으로 읽어 "매매 내역을 찾지 못했습니다"가
+     * 된다. 모델이 이미지를 못 읽은 것과 화면에 매매가 없는 것이 같은 문구로 보이면,
+     * 사용자도 로그를 보는 사람도 원인을 구분할 수 없다.
+     */
     private String content(AiGatewayClient.ChatResponse response) {
-        return response == null ? null : response.content();
+        String content = response == null ? null : response.content();
+        if (content == null || content.isBlank()) {
+            throw new IllegalStateException("ai 모듈이 빈 응답을 반환했습니다");
+        }
+        return content;
     }
 }
