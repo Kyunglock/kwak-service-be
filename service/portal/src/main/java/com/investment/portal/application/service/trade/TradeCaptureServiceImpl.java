@@ -20,6 +20,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -49,6 +50,7 @@ public class TradeCaptureServiceImpl implements TradeCaptureService {
     private final PortfolioMapper portfolioMapper;
     private final TradeExtractionGateway extractionGateway;
     private final TradeExtractionParser parser;
+    private final RuleBasedTradeExtractor ruleExtractor;
     private final StockResolver stockResolver;
     private final TradeDraftStore draftStore;
     private final TransactionHistoryService transactionHistoryService;
@@ -60,6 +62,14 @@ public class TradeCaptureServiceImpl implements TradeCaptureService {
     public TradeDraftResponse captureText(String userId, TradeCaptureTextRequest request) {
         requireOwnedPortfolio(userId, request.portfolioId());
         recordPrompt(userId, request.portfolioId(), request.text());
+
+        // "삼성전자 5주 71,000원에 매도했어" 같은 단순 문장은 규칙으로 즉시 읽는다.
+        // LLM 은 규칙이 확신하지 못하는 문장(여러 건, 총액 표기, 모르는 종목 등)만 맡는다.
+        Optional<ExtractedTrade> quick = ruleExtractor.extract(request.text(), LocalDate.now(KST));
+        if (quick.isPresent()) {
+            log.info("[TradeCapture] 규칙 추출 성공 - LLM 호출 생략, userId: {}", userId);
+            return buildDraft(userId, request.portfolioId(), List.of(quick.get()));
+        }
 
         // 추출 경로(n8n / ai 모듈 직접)는 게이트웨이가 고른다
         String content = extractionGateway.extractFromText(request.text());

@@ -42,6 +42,7 @@ class TradeCaptureServiceTest {
 
     @Mock PortfolioMapper portfolioMapper;
     @Mock TradeExtractionGateway extractionGateway;
+    @Mock RuleBasedTradeExtractor ruleExtractor;
     @Mock StockResolver stockResolver;
     @Mock TradeDraftStore draftStore;
     @Mock TransactionHistoryService transactionHistoryService;
@@ -55,8 +56,11 @@ class TradeCaptureServiceTest {
         // 여기서 mock으로 끊으면 정작 깨지기 쉬운 경로가 테스트에서 빠진다.
         service = new TradeCaptureServiceImpl(
                 portfolioMapper, extractionGateway,
-                new TradeExtractionParser(new ObjectMapper()),
+                new TradeExtractionParser(new ObjectMapper()), ruleExtractor,
                 stockResolver, draftStore, transactionHistoryService, eventPublisher);
+
+        // 규칙 추출기는 기본적으로 "모르겠다" — 기존 테스트는 전부 LLM 경로를 검증한다
+        when(ruleExtractor.extract(anyString(), any())).thenReturn(Optional.empty());
 
         Portfolio mine = Portfolio.builder()
                 .portfolioId(PORTFOLIO_ID).userId(USER).portfolioNm("내 포트폴리오").build();
@@ -140,6 +144,56 @@ class TradeCaptureServiceTest {
 
         assertThatThrownBy(() -> service.captureText(USER, new TradeCaptureTextRequest(404L, "애플 1주")))
                 .isInstanceOf(PortfolioAccessDeniedException.class);
+    }
+
+    // ── 규칙 기반 빠른 경로 ──────────────────────────────────────────────────────
+
+    @Test
+    void 규칙으로_읽힌_문장은_LLM을_부르지_않고_바로_초안이_된다() {
+        when(ruleExtractor.extract(anyString(), any())).thenReturn(Optional.of(new ExtractedTrade(
+                "삼성전자", "005930.KS", "SELL", new BigDecimal("5"), new BigDecimal("71000"),
+                null, null, "KRW")));
+        resolves("005930.KS", "삼성전자");
+
+        TradeDraftResponse draft = service.captureText(USER, textRequest("삼성전자 5주 71,000원에 매도했어"));
+
+        verifyNoInteractions(extractionGateway);
+        assertThat(draft.items()).hasSize(1);
+        TradeDraftItem item = draft.items().get(0);
+        assertThat(item.status()).isEqualTo("READY");
+        assertThat(item.stockCd()).isEqualTo("005930.KS");
+        assertThat(item.transType()).isEqualTo("SELL");
+        assertThat(item.qty()).isEqualByComparingTo("5");
+        assertThat(item.price()).isEqualByComparingTo("71000");
+        assertThat(item.currency()).isEqualTo("KRW");
+        assertThat(item.transDt()).isEqualTo(TODAY);
+        // 초안은 LLM 경로와 똑같이 Redis 에만 둔다
+        verify(draftStore).save(anyString(), eq(USER), eq(PORTFOLIO_ID));
+        verifyNoInteractions(transactionHistoryService);
+    }
+
+    @Test
+    void 규칙_경로도_입력_문장을_활동로그로_남긴다() {
+        when(ruleExtractor.extract(anyString(), any())).thenReturn(Optional.of(new ExtractedTrade(
+                "삼성전자", "005930.KS", "SELL", BigDecimal.ONE, BigDecimal.TEN, null, null, "KRW")));
+        resolves("005930.KS", "삼성전자");
+
+        service.captureText(USER, textRequest("삼성전자 1주 10원 매도"));
+
+        ArgumentCaptor<ActivityEvent> event = ArgumentCaptor.forClass(ActivityEvent.class);
+        verify(eventPublisher).publishEvent(event.capture());
+        assertThat(event.getValue().actionType()).isEqualTo("AI_TRADE_CAPTURE");
+        assertThat(event.getValue().detail()).isEqualTo("삼성전자 1주 10원 매도");
+    }
+
+    @Test
+    void 규칙이_확신하지_못하면_LLM_경로로_간다() {
+        when(ruleExtractor.extract(anyString(), any())).thenReturn(Optional.empty());
+        aiReturns("{\"trades\":[]}");
+
+        service.captureText(USER, textRequest("삼성전자랑 하이닉스 각각 5주씩 샀어"));
+
+        verify(extractionGateway).extractFromText("삼성전자랑 하이닉스 각각 5주씩 샀어");
     }
 
     // ── 초안 생성 ────────────────────────────────────────────────────────────────

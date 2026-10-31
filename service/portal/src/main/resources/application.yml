@@ -53,6 +53,10 @@ collector:
 
 trade:
   extraction:
+    rules:
+      # "삼성전자 5주 71,000원에 매도했어" 같은 단순 문장은 LLM 없이 규칙으로 즉시 읽는다.
+      # 규칙이 확신하지 못하는 문장만 아래 n8n/ai 경로로 간다. 문제 생기면 false 로 끄면 전부 LLM 경로.
+      enabled: ${TRADE_EXTRACTION_RULES_ENABLED:true}
     n8n:
       # 매매기록 추출을 n8n 워크플로우로 보낼지 여부.
       # 워크플로우가 실제로 도는 걸 확인하기 전까지는 false 로 둔다.
